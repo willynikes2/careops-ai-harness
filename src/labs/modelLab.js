@@ -15,7 +15,16 @@ export function scoreTurn(item, turn) {
     key_fact: answered && item.expect.keyFacts.every(group => group.some(k => turn.answer.toLowerCase().includes(k.toLowerCase()))),
   };
   const failed = Object.entries(criteria).filter(([, ok]) => !ok).map(([k]) => k);
-  return { pass: failed.length === 0, failed, criteria };
+  // A provider outage (402/429/timeout) says nothing about the model's answer quality: reported, not scored.
+  return { pass: failed.length === 0, failed, criteria, infraError: turn.status === 'ai_unavailable' };
+}
+export function summarizeModel(m, rows) {
+  const mine = rows.filter(r => r.model === m.id); const scored = mine.filter(r => !r.infraError); const n = scored.length;
+  const criteria = Object.fromEntries(['json_valid', 'citations_valid', 'no_fabricated_ids', 'expected_action', 'key_fact'].map(k => [k, scored.filter(r => r.criteria[k]).length]));
+  const passed = scored.filter(r => r.pass).length;
+  const avgCostUsd = n ? scored.reduce((a, r) => a + r.costUsd, 0) / n : 0;
+  return { id: m.id, label: m.label, passed, total: n, errors: mine.length - n, passRate: n ? passed / n : 0, criteria,
+    avgCostUsd, costPer1k: avgCostUsd * 1000, avgLatencyMs: n ? Math.round(scored.reduce((a, r) => a + r.latencyMs, 0) / n) : 0 };
 }
 export function chooseDefault(models) {
   const ok = models.filter(m => m.passRate >= 0.9).sort((a, b) => a.avgCostUsd - b.avgCostUsd);
@@ -30,15 +39,9 @@ export async function runModelLab({ db, kb, provider, audit, budget, prompts, co
   for (const m of MODELS) for (let rep = 1; rep <= reps; rep += 1) for (const item of EVAL_ITEMS) {
     const turn = await harness.runTurn({ user: userById(db, item.user), message: item.message, model: m.id, purpose: 'lab' });
     const s = scoreTurn(item, turn);
-    rows.push({ itemId: item.id, question: item.message, model: m.id, rep, pass: s.pass, failed: s.failed, criteria: s.criteria, costUsd: turn.costUsd, latencyMs: turn.latencyMs });
+    rows.push({ itemId: item.id, question: item.message, model: m.id, rep, pass: s.pass, failed: s.failed, criteria: s.criteria, infraError: s.infraError, costUsd: turn.costUsd, latencyMs: turn.latencyMs });
   }
-  const models = MODELS.map(m => {
-    const mine = rows.filter(r => r.model === m.id); const n = mine.length;
-    const criteria = Object.fromEntries(['json_valid', 'citations_valid', 'no_fabricated_ids', 'expected_action', 'key_fact'].map(k => [k, mine.filter(r => r.criteria[k]).length]));
-    const avgCostUsd = mine.reduce((a, r) => a + r.costUsd, 0) / n;
-    const passed = mine.filter(r => r.pass).length;
-    return { id: m.id, label: m.label, passed, total: n, passRate: passed / n, criteria, avgCostUsd, costPer1k: avgCostUsd * 1000, avgLatencyMs: Math.round(mine.reduce((a, r) => a + r.latencyMs, 0) / n) };
-  });
+  const models = MODELS.map(m => summarizeModel(m, rows));
   const out = { at: new Date().toISOString(), items: EVAL_ITEMS.length, reps, defaultModel: chooseDefault(models), models, rows: rows.map(({ criteria, ...r }) => r) };
   db.prepare("INSERT OR REPLACE INTO lab_results (lab, at, results_json) VALUES ('models', ?, ?)").run(out.at, JSON.stringify(out));
   return out;

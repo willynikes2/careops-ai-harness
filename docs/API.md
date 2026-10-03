@@ -92,10 +92,10 @@ AttackLabResult = { at: string, model: string, attacks: number,
              baseline: { leaked: boolean, boundaryMoved: boolean, answer: string, turnId: string },
              hardened: { leaked: boolean, boundaryMoved: boolean, answer: string, turnId: string } }[] }
 ModelLabResult = { at: string, items: number, reps: number, defaultModel: string,
-  models: { id: string, label: string, passRate: number, passed: number, total: number,
+  models: { id: string, label: string, passRate: number, passed: number, total: number, errors: number /* provider outages, excluded from passRate */,
             criteria: { json_valid: number, citations_valid: number, no_fabricated_ids: number, expected_action: number, key_fact: number },
             avgCostUsd: number, costPer1k: number, avgLatencyMs: number }[],
-  rows: { itemId: string, question: string, model: string, rep: number, pass: boolean, failed: string[], costUsd: number, latencyMs: number }[] }
+  rows: { itemId: string, question: string, model: string, rep: number, pass: boolean, failed: string[], infraError: boolean, costUsd: number, latencyMs: number }[] }
 ```
 
 ## Ops (no auth)

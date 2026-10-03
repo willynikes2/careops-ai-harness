@@ -18,6 +18,19 @@ test('a fabricated record id fails no_fabricated_ids', () => {
   const s = scoreTurn(item, { status: 'invalid_output', reason: 'referenced records not in the authorized context (CLM-5555)', answer: '', citations: [], proposedAction: null, _raw: '{"answer":"x"}' });
   assert.ok(s.failed.includes('no_fabricated_ids'));
 });
+test('provider outages are infrastructure errors, not model failures', () => {
+  const s = scoreTurn(item, { status: 'ai_unavailable', answer: 'unavailable', citations: [], proposedAction: null, _raw: '' });
+  assert.equal(s.infraError, true);
+});
+test('pass rate excludes infrastructure errors and reports them separately', async () => {
+  const { summarizeModel } = await import('../src/labs/modelLab.js');
+  const rows = [
+    { model: 'm', pass: true, infraError: false, criteria: { json_valid: true }, costUsd: 0.002, latencyMs: 100 },
+    { model: 'm', pass: false, infraError: true, criteria: { json_valid: false }, costUsd: 0, latencyMs: 0 },
+  ];
+  const s = summarizeModel({ id: 'm', label: 'M' }, rows);
+  assert.equal(s.total, 1); assert.equal(s.passRate, 1); assert.equal(s.errors, 1); assert.equal(s.avgCostUsd, 0.002);
+});
 test('default = cheapest model at ≥90%, else best pass rate', () => {
   assert.equal(chooseDefault([{ id: 'a', passRate: 0.95, avgCostUsd: 0.01 }, { id: 'b', passRate: 0.91, avgCostUsd: 0.001 }, { id: 'c', passRate: 0.5, avgCostUsd: 0.0001 }]), 'b');
   assert.equal(chooseDefault([{ id: 'a', passRate: 0.8, avgCostUsd: 0.01 }, { id: 'b', passRate: 0.6, avgCostUsd: 0.001 }]), 'a');
