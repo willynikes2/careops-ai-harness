@@ -1,0 +1,45 @@
+name: careops
+services:
+  careops:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    volumes: [careops-data:/data]
+    networks: [edge, internal]
+    depends_on: [careops-kb]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge-node_internal
+      - traefik.http.routers.careops.rule=Host(`${PUBLIC_HOST}`)
+      - traefik.http.routers.careops.entrypoints=websecure
+      - traefik.http.routers.careops.tls.certresolver=letsencrypt
+      - traefik.http.services.careops.loadbalancer.server.port=3000
+  careops-kb:
+    build:
+      context: ${KB_SERVER_SRC:-../knowledge-base-server}
+      dockerfile_inline: |
+        FROM node:22 AS deps
+        WORKDIR /app
+        COPY package.json package-lock.json ./
+        RUN npm ci --omit=dev
+        FROM node:22-slim
+        WORKDIR /app
+        COPY --from=deps /app/node_modules ./node_modules
+        COPY package.json ./
+        COPY bin ./bin
+        COPY src ./src
+        COPY openapi.json ./
+        ENV HOME=/data KB_PORT=3838
+        CMD ["node", "bin/kb.js", "start"]
+    restart: unless-stopped
+    environment:
+      KB_PASSWORD: ${KB_PASSWORD}
+      KB_API_KEY_CLAUDE: ${KB_API_KEY}
+    volumes: [careops-kb-data:/data]
+    networks: [internal]          # NOT on the edge network: unreachable from the internet
+networks:
+  edge: { external: true, name: edge-node_internal }
+  internal: { internal: true }
+volumes: { careops-data: {}, careops-kb-data: {} }
