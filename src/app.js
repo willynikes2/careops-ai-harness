@@ -15,6 +15,7 @@ import { chatRoutes } from './routes/chat.js';
 import { ptoRoutes } from './routes/pto.js';
 import { claimRoutes } from './routes/claims.js';
 import { adminRoutes } from './routes/admin.js';
+import { labRoutes } from './routes/labs.js';
 
 const WEB_DIR = fileURLToPath(new URL('../web', import.meta.url));
 
@@ -37,7 +38,7 @@ export function createApp({ db, kb, provider, clock = systemClock, config, logge
   const harness = createHarness({ db, kb, provider, clock, audit, budget, prompts, config });
   app.use('/api', chatRoutes({ db, clock, audit, harness, config }));
   app.use('/api', ptoRoutes({ db, clock, audit }), claimRoutes({ db, clock, audit }), adminRoutes({ db, clock, audit, config }));
-  // ROUTERS: labs are mounted here in Tasks 14–15
+  app.use('/api', labRoutes({ db, harness, budget, config, audit }));
   app.use('/api', (req, res, next) => next(new HttpError(404, 'not_found', 'Not found.')));
   app.use(express.static(WEB_DIR, { extensions: ['html'] }));
   app.use(errorHandler(logger));
