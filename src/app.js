@@ -8,6 +8,10 @@ import { authRoutes } from './auth/routes.js';
 import { healthRoutes } from './routes/health.js';
 import { createAudit } from './audit/audit.js';
 import { systemClock } from './util/clock.js';
+import { createBudget } from './llm/budget.js';
+import { createHarness } from './harness/pipeline.js';
+import { loadPrompts } from './harness/prompts.js';
+import { chatRoutes } from './routes/chat.js';
 
 const WEB_DIR = fileURLToPath(new URL('../web', import.meta.url));
 
@@ -25,9 +29,13 @@ export function createApp({ db, kb, provider, clock = systemClock, config, logge
   app.use(healthRoutes({ db, kb, config }));
   app.use('/api/auth', authRoutes({ db, clock, config, audit }));
   app.use('/api', requireUser({ db, clock }));
-  // ROUTERS: chat, pto, claims, admin, labs are mounted here in Tasks 10–15
+  const budget = createBudget(db, clock, config.dailyBudgetUsd);
+  const prompts = loadPrompts();
+  const harness = createHarness({ db, kb, provider, clock, audit, budget, prompts, config });
+  app.use('/api', chatRoutes({ db, clock, audit, harness, config }));
+  // ROUTERS: pto, claims, admin, labs are mounted here in Tasks 11–15
   app.use('/api', (req, res, next) => next(new HttpError(404, 'not_found', 'Not found.')));
   app.use(express.static(WEB_DIR, { extensions: ['html'] }));
   app.use(errorHandler(logger));
-  return { app, audit };
+  return { app, audit, harness };
 }
