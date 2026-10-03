@@ -27,6 +27,7 @@ export function confirmAction(db, { user, actionId, clock, audit }) {
     }
     db.prepare('UPDATE pending_actions SET status = ?, result_json = ? WHERE id = ?').run(out.status, JSON.stringify(out), row.id);
     audit.event({ actor: user, kind: out.status === 'EXECUTED' ? 'action_executed' : 'action_rejected', turnId: row.turn_id, detail: { actionId: row.id, tool: row.tool, message: out.message } });
+    if (out.status === 'EXECUTED' && row.tool === 'create_pto_request') audit.event({ actor: user, kind: 'pto_requested', turnId: row.turn_id, detail: { requestId: out.result.id, date: out.result.date, via: 'assistant' } });
     return out;
   })();
 }
