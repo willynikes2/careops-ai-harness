@@ -8,7 +8,7 @@ import { MODELS, isKnownModel } from '../llm/models.js';
 import { getDefaultModel } from '../harness/pipeline.js';
 
 const ChatBody = z.object({ message: z.string().trim().min(1).max(2000), model: z.string().max(100).optional() });
-const publicTurn = ({ _raw, ...turn }) => turn; // raw model text stays server-side (it is in the trace for admins)
+const publicTurn = ({ _raw, reason, ...turn }) => turn; // raw model text and rejection reason stay server-side (both are in the trace)
 
 export function chatRoutes({ db, clock, audit, harness, config }) {
   const r = Router();

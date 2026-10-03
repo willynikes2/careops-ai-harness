@@ -130,7 +130,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       trace.add('validation', 'error', `Withheld: ${v.reason}.`, { reason: v.reason, raw: out.text.slice(0, 2000) });
       trace.add('execution', 'skipped', 'Nothing executed.');
       audit.event({ actor: user, kind: 'output_rejected', security: true, turnId, detail: { reason: v.reason, model } });
-      return reply({ status: 'invalid_output', answer: "The AI's answer failed a safety check and was withheld.", ...meta });
+      return reply({ status: 'invalid_output', answer: "The AI's answer failed a safety check and was withheld.", reason: v.reason, ...meta });
     }
     if (v.actionRejection) audit.event({ actor: user, kind: 'tool_rejected', security: true, turnId, detail: { proposal: v.data.proposed_action, reason: v.actionRejection } });
     trace.add('validation', v.actionRejection ? 'denied' : 'ok', v.summary, { actionRejection: v.actionRejection });
