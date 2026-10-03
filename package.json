@@ -1,0 +1,28 @@
+{
+  "name": "careops-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test --test-force-exit \"tests/**/*.test.js\"",
+    "load-kb": "node scripts/load-kb.js",
+    "codemap": "node scripts/codemap.js",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
