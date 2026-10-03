@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Workspace · CareOps</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="app">
+  <div class="demo-banner">SYNTHETIC DEMO DATA — no real patients, employees, or PHI.</div>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site-header">
+    <a class="wordmark" href="/app.html">Care<span>Ops</span></a>
+    <div class="identity" id="identity" hidden><span id="user-name"></span><span class="pill role-badge" id="user-role"></span><button class="button quiet" id="logout" type="button">Logout</button></div>
+  </header>
+  <div class="workspace">
+    <aside class="sidebar"><p class="eyebrow">YOUR WORKSPACE</p><nav id="navigation" aria-label="Main navigation"></nav><p class="sidebar-note">The model reasons.<br>The harness checks.<br>You stay in control.</p></aside>
+    <main id="main" class="main-content" tabindex="-1"><p class="loading" role="status">Opening your workspace…</p></main>
+  </div>
+  <p id="global-error" class="global-notice notice error" role="alert" hidden></p>
+  <dialog id="trace-drawer" class="trace-drawer" aria-labelledby="trace-title">
+    <div class="drawer-header"><div><p class="eyebrow">THE DECISION RECORD</p><h2 id="trace-title">Why did this happen?</h2></div><button id="close-trace" class="button quiet" type="button" aria-label="Close decision record">Close</button></div>
+    <div id="trace-content"></div>
+  </dialog>
+  <noscript><p class="notice">Enable JavaScript to use CareOps.</p></noscript>
+</body>
+</html>

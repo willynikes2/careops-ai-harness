@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Sign in · CareOps</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="login">
+  <div class="demo-banner">SYNTHETIC DEMO DATA — no real patients, employees, or PHI.</div>
+  <header class="site-header"><a class="wordmark" href="/">Care<span>Ops</span></a><span class="header-note">A guided operations workspace</span></header>
+  <main class="login-layout" id="main">
+    <section class="login-intro" aria-labelledby="welcome-title">
+      <p class="eyebrow">CARE, WITH CLEAR BOUNDARIES</p>
+      <h1 id="welcome-title">Everyday work.<br>Accountable AI.</h1>
+      <p class="lead">Find a policy, request time off, or move a claim forward. See the sources and checks behind every assistant answer.</p>
+      <ol class="intro-steps"><li><strong>Ask in plain English.</strong><span>The assistant works with your role and records.</span></li><li><strong>Review the next step.</strong><span>You confirm an action before it happens.</span></li><li><strong>See why it happened.</strong><span>Follow each decision from sign-in to audit.</span></li></ol>
+      <p class="muted">Four demo accounts. One shared, entirely fictional workplace.</p>
+    </section>
+    <div class="login-cards">
+      <section class="card" aria-labelledby="login-title">
+        <p class="eyebrow">WELCOME TO CAREOPS</p>
+        <h2 id="login-title">Sign in to your workspace</h2>
+        <form id="login-form" class="stack">
+          <div><label for="username">Username</label><input id="username" name="username" autocomplete="username" required></div>
+          <div><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+          <p id="login-error" class="notice error" role="alert" hidden></p>
+          <button class="button primary" type="submit">Sign in</button>
+        </form>
+      </section>
+      <section class="card account-card" aria-labelledby="accounts-title">
+        <h2 id="accounts-title">Demo accounts</h2>
+        <p class="muted">Select an account to fill the form. Password: <code>careops-demo</code></p>
+        <div class="account-list">
+          <button class="account-row" type="button" data-account="jordan"><span><strong>jordan</strong><span class="pill">Employee</span></span><span>Ask about benefits and request your own PTO.</span></button>
+          <button class="account-row" type="button" data-account="priya"><span><strong>priya</strong><span class="pill">Manager</span></span><span>Review your team's PTO and approve requests.</span></button>
+          <button class="account-row" type="button" data-account="marcus"><span><strong>marcus</strong><span class="pill">Billing Specialist</span></span><span>Review assigned claims and create follow-ups.</span></button>
+          <button class="account-row" type="button" data-account="dana"><span><strong>dana</strong><span class="pill">Compliance Admin</span></span><span>Inspect audit records and compare lab results.</span></button>
+        </div>
+      </section>
+    </div>
+  </main>
+  <noscript><p class="notice">Enable JavaScript to sign in and use CareOps.</p></noscript>
+</body>
+</html>
