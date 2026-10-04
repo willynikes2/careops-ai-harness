@@ -16,21 +16,21 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [audit.js](src/audit/audit.js) | 20 | `createAudit` | Append-only audit trail + per-turn traces. Reset never deletes these. |
+| [audit.js](src/audit/audit.js) | 26 | `createAudit` | Append-only audit trail + per-turn traces. Reset never deletes these. |
 
 ## src/auth
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [passwords.js](src/auth/passwords.js) | 3 | `hashPassword`, `verifyPassword` | — |
-| [routes.js](src/auth/routes.js) | 33 | `authRoutes` | Compared against when the username doesn't exist, so response time doesn't reveal which usernames are real. |
+| [routes.js](src/auth/routes.js) | 45 | `authRoutes` | Compared against when the username doesn't exist, so response time doesn't reveal which usernames are real. |
 | [sessions.js](src/auth/sessions.js) | 15 | `createSession`, `loadSession`, `destroySession` | — |
 
 ## src/db
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [index.js](src/db/index.js) | 14 | `openDb` | — |
+| [index.js](src/db/index.js) | 16 | `openDb` | forward-only migration for databases created before the decision summary existed |
 | [schema.sql](src/db/schema.sql) | 34 | — | — |
 | [seed.js](src/db/seed.js) | 25 | `seedDb` | Restores business data to a known state. Users are upserted (never deleted) so sessions survive; |
 
@@ -47,9 +47,9 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [context.js](src/harness/context.js) | 25 | `OUTPUT_CONTRACT`, `buildModelInput` | — |
-| [pipeline.js](src/harness/pipeline.js) | 173 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
+| [pipeline.js](src/harness/pipeline.js) | 188 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
 | [prompts.js](src/harness/prompts.js) | 5 | `CANARY`, `loadPrompts` | A string that never appears in a legitimate answer; seeing it in output means the system prompt leaked. |
-| [trace.js](src/harness/trace.js) | 8 | `startTrace` | — |
+| [trace.js](src/harness/trace.js) | 9 | `startTrace` | — |
 | [validate.js](src/harness/validate.js) | 24 | `validateTurn` | The model's output is a proposal. Every claim it makes that the app can check, the app checks. |
 
 ## src/http
@@ -99,8 +99,8 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | --- | ---: | --- | --- |
 | [admin.js](src/routes/admin.js) | 14 | `adminRoutes` | — |
 | [chat.js](src/routes/chat.js) | 32 | `chatRoutes` | Withheld model output is visible only to compliance (admin); the turn's owner sees why, not what. |
-| [claims.js](src/routes/claims.js) | 40 | `claimRoutes` | — |
-| [health.js](src/routes/health.js) | 19 | `healthRoutes` | — |
+| [claims.js](src/routes/claims.js) | 39 | `claimRoutes` | — |
+| [health.js](src/routes/health.js) | 20 | `healthRoutes` | — |
 | [labs.js](src/routes/labs.js) | 34 | `labRoutes` | One lab run at a time: runs take minutes and spend money. |
 | [pto.js](src/routes/pto.js) | 33 | `ptoRoutes` | — |
 
@@ -108,8 +108,8 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [actions.js](src/tools/actions.js) | 33 | `proposeAction`, `confirmAction` | — |
-| [registry.js](src/tools/registry.js) | 40 | `TOOLS`, `getTool`, `allowedToolsFor`, `validateProposal` | The ONLY operations a model can propose. Each is narrow, schema-checked, re-authorized at execution, and idempotent via pending_actions. |
+| [actions.js](src/tools/actions.js) | 34 | `proposeAction`, `confirmAction` | — |
+| [registry.js](src/tools/registry.js) | 42 | `TOOLS`, `getTool`, `allowedToolsFor`, `validateProposal` | The ONLY operations a model can propose. Each is narrow, schema-checked, re-authorized at execution, and idempotent via pending_actions. |
 
 ## src/util
 

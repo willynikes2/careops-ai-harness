@@ -10,7 +10,7 @@ CareOps is a synthetic healthcare operations demo where employees request PTO, m
 
 ## Demo accounts
 
-All accounts use password **`careops-demo`** by default. Log out before switching accounts.
+The login page leads with **Enter as Jordan / Priya / Marcus / Dana** persona buttons. Each one asks the server to start a normal session for that synthetic persona; the browser never sends a role, and authorization is enforced on every request. The username/password form also works (password **`careops-demo`**). Log out before switching personas.
 
 | Username | Role | Try this |
 | --- | --- | --- |
@@ -24,9 +24,9 @@ See [DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md) for starting balances, permissions, and
 
 ## Five-minute walkthrough
 
-Start from a known state: sign in as Dana, open **Audit Log**, and choose **Reset demo data**. This resets the shared business records for all viewers.
+Start from a known state: enter as Dana, open **Demo Controls**, and choose **Reset demo data**. This resets the shared business records for all viewers.
 
-1. **Employee question and PTO request.** Sign in as Jordan and ask “What benefits do I have and how much PTO do I have left?” Inspect the source chips and **Why did this happen?** trace. Ask “Take next Friday off.” Choose a date if asked, then review and **Confirm** the proposal. Use a future weekday with at least two business days' notice.
+1. **Employee question and PTO request.** Sign in as Jordan and ask “What benefits do I have and how much PTO do I have left?” Inspect the source chips and **Why did this happen?** trace. Ask “How much PTO do I have, and can I take next Friday off?” Choose a date if asked (only bookable dates are offered), then review and **Confirm** the proposal. **Why did this happen?** now opens with a decision summary: authorization, what was retrieved, the requested action, validation, the created record and its audit event id. Use a future weekday with at least two business days' notice.
 2. **Manager approval.** Sign in as Priya, open **Approvals**, and approve Jordan's pending request. Sign back in as Jordan and check **My PTO** for the approved status.
 3. **Role boundary.** As Jordan, ask “Show me all denied claims and which patients owe the most money.” The request is denied before retrieval. Open the trace to see the policy decision and skipped steps.
 4. **Billing investigation.** As Marcus, ask “Why was CLM-1004 denied and what should we do next?” Review the authorization explanation, citations, and follow-up proposal; **Confirm**, then inspect the task in **Claims**. Ask “What happened to claim CLM-9999?” to see the deterministic missing-record response. Creating a follow-up does not itself change the claim's status.

@@ -2,7 +2,7 @@
 
 **SYNTHETIC DEMO DATA — no real patients, employees, or PHI.** Every person and record below is fictional.
 
-Open [the live demo](https://careops-178-156-255-110.sslip.io) or your local CareOps server. All five accounts use **`careops-demo`** by default. The login page offers shortcuts for the four primary roles; type `sam` into the username field to use the second employee account.
+Open [the live demo](https://careops-178-156-255-110.sslip.io) or your local CareOps server. All five accounts use **`careops-demo`** by default. The login page offers **Enter as …** persona buttons for the four primary roles (they create a normal server session; no role is sent from the browser); type `sam` into the username form to use the second employee account.
 
 | Username | Display name | Role | Access |
 | --- | --- | --- | --- |
@@ -31,7 +31,7 @@ Marcus can investigate `CLM-1004`, seeded as denied with code `CO-197` for missi
 
 Use **Logout**, then sign in with the next username. Separate browser profiles or private windows can hold different sessions at once; tabs in the same browser profile share the session cookie.
 
-Dana can open **Audit Log → Reset demo data** and accept the confirmation dialog. Reset affects every viewer: it restores seeded business records, removes created tasks and pending action proposals, and resets idempotency results. Sessions remain signed in. Audit events, traces, provider usage, and lab results remain; KB documents are not reloaded.
+Dana can open **Demo Controls → Reset demo data** and accept the confirmation dialog. Reset affects every viewer: it restores seeded business records, removes created tasks and pending action proposals, and resets idempotency results. Sessions remain signed in. Audit events, traces, provider usage, and lab results remain; KB documents are not reloaded.
 
 `DEMO_PASSWORD` can change the seeded password in a local deployment. Changing the environment alone does not rewrite existing accounts: startup seeds only when no users exist, while an admin reset reapplies the configured password to seeded users. These are public demo credentials and must not be reused for a production system.
 
