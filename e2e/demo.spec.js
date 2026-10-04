@@ -94,6 +94,8 @@ test.describe.serial('hiring-manager demo path', () => {
     await row.getByRole('button', { name: 'Approve', exact: true }).click();
     await expect(page.getByRole('row').filter({ hasText: 'Jordan Lee' })).toContainText('Approved');
     await page.getByRole('button', { name: 'Logout', exact: true }).click();
+    // Logout redirects to the sign-in page itself; wait for it so the next goto doesn't race that navigation.
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
     await login(page, 'jordan');
     await page.getByRole('link', { name: 'My PTO', exact: false }).click();
     await expect(page.getByRole('table', { name: 'Your time-off requests' })).toContainText('Approved');
@@ -154,7 +156,7 @@ test.describe.serial('hiring-manager demo path', () => {
     await expect(page.getByRole('table')).toContainText('Access denied');
     await page.getByRole('button', { name: 'View trace', exact: true }).first().click();
     await expect(page.getByRole('dialog').getByRole('heading', { name: 'Policy', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Close trace', exact: false }).click();
+    await page.getByRole('button', { name: 'Close decision record', exact: true }).click();
     await page.getByRole('link', { name: 'Attack Lab', exact: false }).click();
     await expect(page.getByRole('table')).toBeVisible();
     await expect(page.getByText(/Boundary moves/).first()).toBeVisible();
