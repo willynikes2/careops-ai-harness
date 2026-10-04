@@ -67,3 +67,8 @@ test('idempotency replays the first result', () => {
   const b = withIdempotency(db, { key: 'k1', userId: 'u', scope: 's' }, () => ({ n: ++n }));
   assert.deepEqual(a, { n: 1 }); assert.deepEqual(b, { n: 1 }); assert.equal(n, 1);
 });
+
+test('impossible calendar dates are rejected, not rolled over', () => {
+  const db = world();
+  assert.throws(() => createPtoRequest(db, { user: jordan, date: '2027-02-30', clock }), /valid date/);
+});

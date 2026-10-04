@@ -3,10 +3,12 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { asyncHandler, parseBody, requireUser } from '../http/middleware.js';
 import { errors, HttpError } from '../http/errors.js';
-import { verifyPassword } from './passwords.js';
+import { hashPassword, verifyPassword } from './passwords.js';
 import { createSession, destroySession } from './sessions.js';
 
 const Login = z.object({ username: z.string().min(1).max(64), password: z.string().min(1).max(200) });
+// Compared against when the username doesn't exist, so response time doesn't reveal which usernames are real.
+const DUMMY_HASH = hashPassword('careops-no-such-user');
 const publicUser = (u) => ({ id: u.id, username: u.username, displayName: u.display_name ?? u.displayName, role: u.role });
 
 export function authRoutes({ db, clock, config, audit }) {
@@ -15,7 +17,8 @@ export function authRoutes({ db, clock, config, audit }) {
   r.post('/login', rateLimit({ windowMs: 60_000, limit: 10, skipSuccessfulRequests: true, handler: (req, res, next) => next(errors.rateLimited()) }), asyncHandler(async (req, res) => {
     const { username, password } = parseBody(Login, req.body);
     const u = db.prepare('SELECT * FROM users WHERE username = ?').get(username.toLowerCase());
-    if (!u || !verifyPassword(password, u.password_hash)) {
+    const ok = verifyPassword(password, u?.password_hash ?? DUMMY_HASH) && Boolean(u);
+    if (!ok) {
       audit.event({ kind: 'login_failed', security: true, detail: { username: username.slice(0, 64) } });
       throw new HttpError(401, 'unauthenticated', 'Username or password is incorrect.');
     }

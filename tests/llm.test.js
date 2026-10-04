@@ -38,3 +38,17 @@ test('budget sums today only', () => {
   b.record({ model: 'm', purpose: 'chat', usage: { costUsd: 0.4 }, latencyMs: 1, ok: true });
   assert.ok(Math.abs(b.remaining() - 0.6) < 1e-9);
 });
+
+test('one shared deadline covers the retry (an outage reports in ~timeout, not 2x)', async () => {
+  let n = 0;
+  const fetchImpl = (url, init) => new Promise((resolve, reject) => {
+    n += 1;
+    if (n === 1) setTimeout(() => resolve(new Response('busy', { status: 503 })), 250);
+    init.signal.addEventListener('abort', () => reject(Object.assign(new Error('timed out'), { name: 'TimeoutError' })));
+  });
+  const p = new OpenRouterProvider({ apiKey: 'k', fetchImpl, timeoutMs: 400 });
+  const keepAlive = setInterval(() => {}, 50); // AbortSignal.timeout timers are unref'd; a real socket would hold the loop open
+  const started = performance.now();
+  await assert.rejects(p.complete({ model: 'm', system: 's', user: 'u' })).finally(() => clearInterval(keepAlive));
+  assert.ok(performance.now() - started < 550, `took ${Math.round(performance.now() - started)}ms`);
+});

@@ -6,11 +6,14 @@ export class OpenRouterProvider {
   async complete({ model, system, user, temperature = 0 }) {
     if (!this.apiKey) throw new ProviderError('reasoning provider not configured');
     const started = performance.now();
+    const deadline = started + this.timeoutMs; // one budget for the call and its retry
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      const remaining = Math.round(deadline - performance.now());
+      if (remaining < 50) throw new ProviderError('provider_timeout');
       let res;
       try {
         res = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
-          method: 'POST', signal: AbortSignal.timeout(this.timeoutMs),
+          method: 'POST', signal: AbortSignal.timeout(remaining),
           headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'CareOps Harness Demo' },
           body: JSON.stringify({ model, temperature, messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
             response_format: { type: 'json_object' }, usage: { include: true }, max_tokens: 800 }),

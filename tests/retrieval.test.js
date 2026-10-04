@@ -33,3 +33,12 @@ test('kb client sends the API key and maps fields', async () => {
   assert.deepEqual(await kb.search('x'), [{ id: '7', title: 'A', collection: 'careops-hr' }]);
   assert.equal(headers['X-API-Key'], 'secret');
 });
+
+test('documents are fetched in parallel', async () => {
+  const kb = fakeKb(); const get = kb.get;
+  kb.get = async (id) => { await new Promise(r => setTimeout(r, 120)); return get(id); };
+  const started = performance.now();
+  const r = await retrieveForUser({ kb, user: { role: 'billing' }, query: 'Payer A authorization CO-197' });
+  assert.equal(r.docs.length, 3);
+  assert.ok(performance.now() - started < 300, `took ${Math.round(performance.now() - started)}ms`);
+});

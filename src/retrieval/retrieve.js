@@ -5,11 +5,8 @@ export async function retrieveForUser({ kb, user, query, maxDocs = 3, maxChars =
   const allowed = new Set(Object.hasOwn(ROLE_COLLECTIONS, user.role) ? ROLE_COLLECTIONS[user.role] : []);
   const hits = await kb.search(query, { limit: 10 });
   const permitted = hits.filter(h => allowed.has(h.collection));
-  const docs = [];
-  for (const h of permitted.slice(0, maxDocs)) {
-    const d = await kb.get(h.id);
-    if (allowed.has(d.collection)) docs.push({ ...d, content: d.content.slice(0, maxChars) });
-  }
+  const fetched = await Promise.all(permitted.slice(0, maxDocs).map(h => kb.get(h.id)));
+  const docs = fetched.filter(d => allowed.has(d.collection)).map(d => ({ ...d, content: d.content.slice(0, maxChars) }));
   return { docs, filteredOut: hits.length - permitted.length };
 }
 // Deterministic tripwire for instruction-like text inside retrieved documents. It never blocks the answer;

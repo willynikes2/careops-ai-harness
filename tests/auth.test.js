@@ -67,3 +67,10 @@ test('a wrong password gets a clear message', async (t) => {
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error.message, 'Username or password is incorrect.');
 });
+
+test('an unknown username costs the same password check as a known one (no timing tell)', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const time = async (username) => { const s = performance.now(); await fetch(`${app.base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username, password: 'nope' }) }); return performance.now() - s; };
+  const known = await time('jordan'); const unknown = await time('nobody-here');
+  assert.ok(unknown > known * 0.5, `unknown ${unknown.toFixed(1)}ms vs known ${known.toFixed(1)}ms`);
+});
