@@ -54,17 +54,19 @@ export function getDefaultModel(db, config) {
 }
 
 export function createHarness({ db, kb, provider, clock, audit, budget, prompts, config }) {
-  function finish(trace, turn) {
+  function finish(trace, turn, ev) {
     trace.add('audit', 'ok', `Recorded as ${turn.turnId}.`, { status: turn.status });
     audit.saveTrace(trace.toJSON());
-    audit.event({ actor: trace.user, kind: 'chat_turn', turnId: turn.turnId, detail: { status: turn.status, model: turn.model } });
+    ev({ actor: trace.user, kind: 'chat_turn', turnId: turn.turnId, detail: { status: turn.status, model: turn.model } });
     return turn;
   }
 
   async function runTurn({ user, message, model = getDefaultModel(db, config), promptVariant = 'hardened', purpose = 'chat' }) {
     const turnId = newId('turn');
     const trace = startTrace(turnId, user, clock);
-    const reply = (f) => finish(trace, { turnId, status: 'answered', answer: '', citations: [], clarification: null, proposedAction: null, model: null, costUsd: 0, latencyMs: 0, ...f });
+    // lab turns are tagged so they are never mistaken for a real person's activity in the audit log
+    const ev = (e) => audit.event(purpose === 'chat' ? e : { ...e, detail: { ...(e.detail ?? {}), purpose } });
+    const reply = (f) => finish(trace, { turnId, status: 'answered', answer: '', citations: [], clarification: null, proposedAction: null, model: null, costUsd: 0, latencyMs: 0, ...f }, ev);
     trace.add('identity', 'ok', `Signed in as ${user.displayName} (${user.role}). Identity comes from the server session, not the browser.`, { userId: user.id, role: user.role });
 
     // 1. POLICY — before any data is touched
@@ -73,7 +75,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     if (!can(user, permission)) {
       trace.add('policy', 'denied', `Classified as "${intent}", which requires "${permission}". The ${user.role} role does not have it, so nothing was retrieved.`, { intent, permission });
       SKIP(trace, ['state', 'retrieval', 'reasoning', 'validation', 'execution'], 'Stopped by policy.');
-      audit.event({ actor: user, kind: 'access_denied', security: true, turnId, detail: { intent, permission, message: message.slice(0, 200) } });
+      ev({ actor: user, kind: 'access_denied', security: true, turnId, detail: { intent, permission, message: message.slice(0, 200) } });
       return reply({ status: 'denied', answer: DENIAL_TEXT[intent] ?? DENIAL_TEXT.default });
     }
     trace.add('policy', 'ok', `Allowed: "${intent}" requires "${permission}".`, { intent, permission });
@@ -88,7 +90,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       SKIP(trace, ['retrieval', 'reasoning'], 'No authorized record — the model was not asked to guess.');
       trace.add('validation', 'ok', `Resource check: no authorized claim with ID ${ids}.`, { missing: facts.missingClaimIds });
       trace.add('execution', 'skipped', 'Nothing to execute.');
-      audit.event({ actor: user, kind: 'resource_not_found', turnId, detail: { claimIds: facts.missingClaimIds } });
+      ev({ actor: user, kind: 'resource_not_found', turnId, detail: { claimIds: facts.missingClaimIds } });
       return reply({ answer: `No authorized claim with ID ${ids} was found in your queue. I won't guess at a status, patient, payer, or denial reason. Check the claim number, or ask a billing supervisor whether it is assigned to someone else.` });
     }
     if (dateRes && dateRes.kind !== 'date') {
@@ -119,7 +121,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       const flaggedDocs = flagInstructionLike(docs);
       const flagNote = flaggedDocs.length ? ` Instruction-like text found in ${flaggedDocs.map(d => `"${d.title}"`).join(', ')} — passed to the model as untrusted data, never as instructions; it cannot grant tools or permissions.` : '';
       trace.add('retrieval', 'ok', `${docs.length} document(s) from ${ROLE_COLLECTIONS[user.role].join(', ')}; ${r.filteredOut} result(s) outside this role were dropped before the model saw anything.${flagNote}`, { docs: docs.map(d => ({ id: d.id, title: d.title, collection: d.collection })), filteredOut: r.filteredOut, flaggedDocs });
-      if (flaggedDocs.length) audit.event({ actor: user, kind: 'injection_detected', security: true, turnId, detail: { docs: flaggedDocs } });
+      if (flaggedDocs.length) ev({ actor: user, kind: 'injection_detected', security: true, turnId, detail: { docs: flaggedDocs } });
     } catch (err) {
       trace.add('retrieval', 'error', 'Knowledge service unavailable — continuing with database facts only.', { error: String(err.message) });
     }
@@ -128,7 +130,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     if (budget.remaining() <= 0) {
       trace.add('reasoning', 'skipped', 'Daily AI budget reached — no model call made.', { dailyBudgetUsd: config.dailyBudgetUsd });
       SKIP(trace, ['validation', 'execution'], 'No state was changed.');
-      audit.event({ actor: user, kind: 'budget_exhausted', turnId });
+      ev({ actor: user, kind: 'budget_exhausted', turnId });
       return reply({ status: 'ai_unavailable', answer: UNAVAILABLE });
     }
     const input = buildModelInput({ systemPrompt: prompts[promptVariant], user, intent, facts, docs, message, today: nyDate(clock.now()) });
@@ -141,7 +143,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       budget.record({ model, purpose, usage: null, latencyMs: 0, ok: false });
       trace.add('reasoning', 'error', 'The AI provider failed or timed out.', { model, error: String(err.message) });
       SKIP(trace, ['validation', 'execution'], 'No state was changed.');
-      audit.event({ actor: user, kind: 'provider_failure', turnId, detail: { model, error: String(err.message) } });
+      ev({ actor: user, kind: 'provider_failure', turnId, detail: { model, error: String(err.message) } });
       return reply({ status: 'ai_unavailable', answer: UNAVAILABLE, model });
     }
 
@@ -152,10 +154,10 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       const raw = out.text.includes(CANARY) ? '[redacted: output contained protected system-prompt text]' : out.text.slice(0, 2000);
       trace.add('validation', 'error', `Withheld: ${v.reason}.`, { reason: v.reason, raw });
       trace.add('execution', 'skipped', 'Nothing executed.');
-      audit.event({ actor: user, kind: 'output_rejected', security: true, turnId, detail: { reason: v.reason, model } });
+      ev({ actor: user, kind: 'output_rejected', security: true, turnId, detail: { reason: v.reason, model } });
       return reply({ status: 'invalid_output', answer: "The AI's answer failed a safety check and was withheld.", reason: v.reason, ...meta });
     }
-    if (v.actionRejection) audit.event({ actor: user, kind: 'tool_rejected', security: true, turnId, detail: { proposal: v.data.proposed_action, reason: v.actionRejection } });
+    if (v.actionRejection) ev({ actor: user, kind: 'tool_rejected', security: true, turnId, detail: { proposal: v.data.proposed_action, reason: v.actionRejection } });
     trace.add('validation', v.actionRejection ? 'denied' : 'ok', v.summary, { actionRejection: v.actionRejection });
 
     // 6. EXECUTION — deterministic, only after the user confirms

@@ -52,3 +52,40 @@ test('labs are admin-only', async (t) => {
   const { call } = await app.login('jordan');
   assert.equal((await call('/api/labs/attacks/run', { method: 'POST' })).status, 403);
 });
+
+test('lab turns are tagged in the audit log', async (t) => {
+  const provider = new FakeProvider(() => ({ answer: 'I help with CareOps questions.' }));
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('dana');
+  await call('/api/labs/attacks/run', { method: 'POST' });
+  const turns = app.db.prepare("SELECT detail_json FROM audit_events WHERE kind='chat_turn'").all().map(r => JSON.parse(r.detail_json));
+  assert.ok(turns.length >= 22 && turns.every(d => d.purpose === 'lab'));
+});
+test('other users acting during a lab run do not count as a boundary move', async (t) => {
+  let app;
+  const provider = new FakeProvider(() => {
+    app.db.prepare("INSERT INTO billing_tasks (id, claim_id, kind, note, status, created_by, created_at) VALUES (lower(hex(randomblob(8))), 'CLM-1004', 'PAYER_CALL', 'concurrent user', 'OPEN', 'u-marcus', 'x')").run();
+    return { answer: 'I help with CareOps questions.' };
+  });
+  app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('dana');
+  const r = (await call('/api/labs/attacks/run', { method: 'POST' })).body;
+  assert.equal(r.summary.baseline.boundaryMoves + r.summary.hardened.boundaryMoves, 0);
+});
+test('harness interventions are counted per variant', async (t) => {
+  const { baseline } = loadPrompts();
+  const provider = new FakeProvider((req) => (req.system.startsWith(baseline) ? { answer: 'Done.', proposed_action: { tool: 'grant_admin_role', args: {} } } : { answer: 'I help with CareOps questions.' }));
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('dana');
+  const r = (await call('/api/labs/attacks/run', { method: 'POST' })).body;
+  assert.equal(r.summary.baseline.interventions, 11);
+  assert.equal(r.summary.hardened.interventions, 0);
+  assert.equal(r.results[0].baseline.intervened, true);
+});
+test('a second lab run while one is in progress is refused', async (t) => {
+  const provider = new FakeProvider(async () => { await new Promise(r => setTimeout(r, 20)); return { answer: 'ok' }; });
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('dana');
+  const [a, b] = await Promise.all([call('/api/labs/attacks/run', { method: 'POST' }), call('/api/labs/models/run', { method: 'POST' })]);
+  assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+});
