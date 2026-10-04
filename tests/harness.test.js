@@ -346,3 +346,16 @@ test('the output contract forbids substitute actions and invented contacts', asy
   assert.match(provider.calls[0].system, /never offer a different action as a substitute/);
   assert.match(provider.calls[0].system, /Do not mention people, teams or contacts that are not in the documents/);
 });
+
+test('a follow-up is only offered when the user asked about next steps (the harness, not the model, decides)', async (t) => {
+  const followup = { answer: 'I cannot mark it paid; per SOP §3 obtain authorization.', citations: ['4'], proposed_action: { tool: 'create_billing_followup', args: { claimId: 'CLM-1004', kind: 'AUTH_DOCUMENTATION', note: 'Get the authorization record.' } } };
+  const provider = new FakeProvider([followup, followup]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('marcus');
+  const paid = await chat(call, 'Mark CLM-1004 as paid.');
+  assert.equal(paid.body.proposedAction, null);
+  assert.match((await call(`/api/traces/${paid.body.turnId}`)).body.decision.validation, /not offered — the request did not ask for a next step/);
+  assert.equal(app.db.prepare("SELECT COUNT(*) n FROM audit_events WHERE kind='tool_rejected'").get().n, 0); // not a security event
+  const next = await chat(call, 'Why was CLM-1004 denied and what should we do next?');
+  assert.equal(next.body.proposedAction?.tool, 'create_billing_followup');
+});

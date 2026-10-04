@@ -17,6 +17,8 @@ export const TOOLS = Object.freeze({
   },
   create_billing_followup: {
     permission: 'billing:task:create', intents: ['billing'],
+    // offered only when the user asked about next steps; a request no tool can do ("mark it paid") gets no substitute action
+    askedFor: /\b(what (should|do|can) (we|i) do|next steps?|what now|follow.?ups?|tasks?|resolve|fix (it|this|that)|how (do|should|can) (we|i) (fix|resolve|handle|proceed))\b/i,
     args: z.object({ claimId: z.string().regex(/^CLM-\d{4}$/), kind: z.enum(TASK_KINDS), note: z.string().min(1).max(500) }).strict(),
     checkResources: (a, facts) => ((facts.claims ?? []).some(c => c.id === a.claimId) ? null : `claim ${a.claimId} is not in this user's authorized context`),
     summarize: (a) => `Create ${a.kind} follow-up on ${a.claimId}: "${a.note}"`,
@@ -28,7 +30,7 @@ export const TOOLS = Object.freeze({
 export const getTool = (name) => (Object.hasOwn(TOOLS, name) ? TOOLS[name] : null);
 export const allowedToolsFor = (user, intent) => Object.entries(TOOLS).filter(([, t]) => can(user, t.permission) && t.intents.includes(intent)).map(([n]) => n);
 
-export function validateProposal({ proposal, user, intent, facts }) {
+export function validateProposal({ proposal, user, intent, facts, message = '' }) {
   if (!proposal) return { ok: true, action: null };
   const tool = getTool(proposal.tool);
   if (!tool) return { ok: false, reason: `unknown tool "${proposal.tool}" (not in registry)` };
@@ -38,5 +40,6 @@ export function validateProposal({ proposal, user, intent, facts }) {
   if (!parsed.success) return { ok: false, reason: `invalid args: ${parsed.error.issues.map(i => `${i.path.join('.') || 'args'} ${i.message}`).join('; ')}` };
   const resourceError = tool.checkResources(parsed.data, facts);
   if (resourceError) return { ok: false, reason: resourceError };
+  if (tool.askedFor && !tool.askedFor.test(message)) return { ok: true, action: null, notOffered: `${proposal.tool} not offered — the request did not ask for a next step` };
   return { ok: true, action: { tool: proposal.tool, args: parsed.data, summary: tool.summarize(parsed.data) } };
 }

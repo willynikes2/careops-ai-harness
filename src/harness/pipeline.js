@@ -167,7 +167,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
 
     // 5. VALIDATION — the model's output is a proposal, never authority
     const meta = { model, costUsd: out.usage.costUsd, latencyMs: out.latencyMs, _raw: out.text };
-    const v = validateTurn({ text: out.text, docs, facts, user, intent });
+    const v = validateTurn({ text: out.text, docs, facts, user, intent, message });
     if (!v.ok) {
       const raw = out.text.includes(CANARY) ? '[redacted: output contained protected system-prompt text]' : out.text.slice(0, 2000);
       trace.add('validation', 'error', `Withheld: ${v.reason}.`, { reason: v.reason, raw });
@@ -178,7 +178,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     }
     decision.requestedAction = v.data.proposed_action?.tool ?? null;
     decision.sources = v.citations.length ? v.citations.map(c => c.title) : decision.sources;
-    decision.validation = v.actionRejection ? `PASSED with tool request REJECTED: ${v.actionRejection}` : 'PASSED';
+    decision.validation = v.actionRejection ? `PASSED with tool request REJECTED: ${v.actionRejection}` : v.notOffered ? `PASSED — ${v.notOffered}` : 'PASSED';
     if (v.actionRejection) {
       sec({ actor: user, kind: 'tool_rejected', turnId, detail: { proposal: v.data.proposed_action, reason: v.actionRejection } });
       safety.push(`The model asked for "${v.data.proposed_action.tool}", which is not an allowed action here — it was blocked and nothing changed.`);
