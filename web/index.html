@@ -20,25 +20,26 @@
       <p class="muted">Four demo accounts. One shared, entirely fictional workplace.</p>
     </section>
     <div class="login-cards">
+      <section class="card persona-card" aria-labelledby="persona-title">
+        <p class="eyebrow">TRY THE DEMO</p>
+        <h2 id="persona-title">Enter as a demo persona</h2>
+        <div class="account-list">
+          <button class="account-row persona-row" type="button" data-persona="jordan"><span><strong>Enter as Jordan</strong><span class="pill">Employee</span></span><span>Benefits • PTO • Employee policies</span></button>
+          <button class="account-row persona-row" type="button" data-persona="priya"><span><strong>Enter as Priya</strong><span class="pill">Manager</span></span><span>Team PTO • Staffing • Approvals</span></button>
+          <button class="account-row persona-row" type="button" data-persona="marcus"><span><strong>Enter as Marcus</strong><span class="pill">Billing Specialist</span></span><span>Claims • Denials • Payer rules • Follow-up</span></button>
+          <button class="account-row persona-row" type="button" data-persona="dana"><span><strong>Enter as Dana</strong><span class="pill">Compliance Admin</span></span><span>Audit • Security events • Policy outcomes</span></button>
+        </div>
+        <p id="persona-error" class="notice error" role="alert" hidden></p>
+        <p class="small muted">Demo identities contain synthetic data only. Persona shortcuts exist for demonstration; identity and authorization are still enforced by the backend.</p>
+      </section>
       <section class="card" aria-labelledby="login-title">
-        <p class="eyebrow">WELCOME TO CAREOPS</p>
-        <h2 id="login-title">Sign in to your workspace</h2>
+        <h2 id="login-title">Or sign in with a username</h2>
         <form id="login-form" class="stack">
           <div><label for="username">Username</label><input id="username" name="username" autocomplete="username" required></div>
           <div><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
           <p id="login-error" class="notice error" role="alert" hidden></p>
-          <button class="button primary" type="submit">Sign in</button>
+          <button class="button secondary" type="submit">Sign in</button>
         </form>
-      </section>
-      <section class="card account-card" aria-labelledby="accounts-title">
-        <h2 id="accounts-title">Demo accounts</h2>
-        <p class="muted">Select an account to fill the form. Password: <code>careops-demo</code></p>
-        <div class="account-list">
-          <button class="account-row" type="button" data-account="jordan"><span><strong>jordan</strong><span class="pill">Employee</span></span><span>Ask about benefits and request your own PTO.</span></button>
-          <button class="account-row" type="button" data-account="priya"><span><strong>priya</strong><span class="pill">Manager</span></span><span>Review your team's PTO and approve requests.</span></button>
-          <button class="account-row" type="button" data-account="marcus"><span><strong>marcus</strong><span class="pill">Billing Specialist</span></span><span>Review assigned claims and create follow-ups.</span></button>
-          <button class="account-row" type="button" data-account="dana"><span><strong>dana</strong><span class="pill">Compliance Admin</span></span><span>Inspect audit records and compare lab results.</span></button>
-        </div>
       </section>
     </div>
   </main>

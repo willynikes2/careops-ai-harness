@@ -94,7 +94,12 @@ export function claims(root, ctx) {
       if (!pending) mutate('followups', { kind: kind.value, note: note.value.trim(), idempotencyKey: followupAttempt.key }, add, 'Follow-up created.');
     });
     note.addEventListener('input', () => note.setCustomValidity(''));
-    transition.addEventListener('submit', event => { event.preventDefault(); mutate('transition', { to: target.value }, change, 'Claim status updated.'); });
+    let transitionAttempt = null;
+    transition.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!transitionAttempt || transitionAttempt.to !== target.value) transitionAttempt = { to: target.value, key: newKey() };
+      mutate('transition', { to: target.value, idempotencyKey: transitionAttempt.key }, change, 'Claim status updated.');
+    });
   }
   ctx.on(window, 'careops:data-changed', () => { load(); if (selectedId) open(selectedId); });
   load();

@@ -4,13 +4,22 @@ import { busy, message } from './shared.js';
 export function login() {
   const form = document.querySelector('#login-form');
   const error = document.querySelector('#login-error');
+  const personaError = document.querySelector('#persona-error');
   const submit = form.querySelector('[type="submit"]');
-  for (const row of document.querySelectorAll('[data-account]')) {
-    row.addEventListener('click', () => {
-      form.elements.username.value = row.dataset.account;
-      form.elements.password.value = 'careops-demo';
-      message(error, '');
-      submit.focus();
+  const personas = [...document.querySelectorAll('[data-persona]')];
+  // Persona shortcuts ask the server to start a normal session for a named demo persona; the browser never sends a role.
+  for (const row of personas) {
+    row.addEventListener('click', async () => {
+      if (row.disabled) return;
+      for (const other of personas) other.disabled = true;
+      row.classList.add('is-busy');
+      message(personaError, '');
+      const result = await api('/auth/demo', { method: 'POST', body: { persona: row.dataset.persona } });
+      if (result.error) {
+        message(personaError, result.error.message);
+        for (const other of personas) other.disabled = false;
+        row.classList.remove('is-busy');
+      } else location.assign('/app.html');
     });
   }
   form.addEventListener('submit', async event => {

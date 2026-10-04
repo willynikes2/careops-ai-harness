@@ -9,6 +9,7 @@ import { claims } from './views/claims.js';
 import { audit } from './views/audit.js';
 import { attackLab, modelLab } from './views/labs.js';
 import { howItWorks } from './views/how-it-works.js';
+import { demoControls } from './views/demo-controls.js';
 
 const routes = [
   { id: 'assistant', name: 'Assistant', icon: '✦', roles: ['employee', 'manager', 'billing', 'admin'] },
@@ -18,6 +19,7 @@ const routes = [
   { id: 'audit', name: 'Audit Log', icon: '≡', roles: ['admin'], render: audit },
   { id: 'attacks', name: 'Attack Lab', icon: '◇', roles: ['admin'], render: attackLab },
   { id: 'models', name: 'Model Lab', icon: '▥', roles: ['admin'], render: modelLab },
+  { id: 'demo', name: 'Demo Controls', icon: '↺', roles: ['admin'], render: demoControls },
   { id: 'how-it-works', name: 'How It Works', icon: '?', roles: ['employee', 'manager', 'billing', 'admin'], render: howItWorks },
 ];
 

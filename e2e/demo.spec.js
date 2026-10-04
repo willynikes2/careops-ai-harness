@@ -23,6 +23,14 @@ async function login(page, username) {
   await expect(page.getByText('SYNTHETIC DEMO DATA — no real patients, employees, or PHI.', { exact: true })).toBeVisible();
 }
 
+// Persona shortcut: the server creates the session; the browser never sends a role.
+async function enterAs(page, persona) {
+  await page.goto('/');
+  await page.locator(`[data-persona="${persona}"]`).click();
+  await expect(page.getByRole('heading', { name: 'Assistant', exact: true })).toBeVisible();
+  await expect(page.getByText('SYNTHETIC DEMO DATA — no real patients, employees, or PHI.', { exact: true })).toBeVisible();
+}
+
 async function ask(page, text) {
   await page.getByRole('textbox', { name: 'Message', exact: true }).fill(text);
   const response = page.waitForResponse(r => r.url().endsWith('/api/chat') && r.request().method() === 'POST');
@@ -52,14 +60,14 @@ test.describe.serial('hiring-manager demo path', () => {
     expect(ready.ok()).toBeTruthy();
     expect((await ready.json()).status).toBe('ready');
     await login(page, 'dana');
-    await page.getByRole('link', { name: 'Audit Log', exact: false }).click();
+    await page.getByRole('link', { name: 'Demo Controls', exact: false }).click();
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Reset demo data', exact: true }).click();
     await expect(page.getByText('Demo data reset. Sessions are still signed in.', { exact: true })).toBeVisible();
   });
 
   test('02 employee benefits and balance are grounded in sources', async ({ page }) => {
-    await login(page, 'jordan');
+    await enterAs(page, 'jordan');
     const turn = await ask(page, 'What benefits do I have and how much PTO do I have left?');
     expect(turn.status).toBe('answered');
     expect(turn.answer).toMatch(/\b40\b/);
@@ -74,7 +82,7 @@ test.describe.serial('hiring-manager demo path', () => {
 
   test('03 employee confirms a PTO proposal and sees the shared request', async ({ page }) => {
     await login(page, 'jordan');
-    let turn = await ask(page, 'Take next Friday off.');
+    let turn = await ask(page, 'How much PTO do I have, and can I take next Friday off?');
     if (turn.clarification?.options.length) {
       const option = turn.clarification.options[0];
       const response = page.waitForResponse(r => r.url().endsWith('/api/chat') && r.request().method() === 'POST');
@@ -111,6 +119,10 @@ test.describe.serial('hiring-manager demo path', () => {
     await expect(page.getByRole('log')).toContainText('no billing data was retrieved');
     await page.getByRole('button', { name: 'Why did this happen?', exact: true }).click();
     await expect(page.getByRole('dialog')).toContainText('nothing was retrieved');
+    const summary = page.getByRole('region', { name: 'Decision summary' });
+    await expect(summary).toContainText('DENIED');
+    await expect(summary).toContainText('NOT EXECUTED');
+    await expect(summary).toContainText(/EVT-\d{6} \(security\)/);
   });
 
   test('06 billing answer cites evidence and creates a follow-up', async ({ page }) => {
@@ -147,11 +159,17 @@ test.describe.serial('hiring-manager demo path', () => {
     const identity = await page.request.get('/api/auth/me');
     expect((await identity.json()).user.role).toBe('billing');
     expect((await page.request.get('/api/audit')).status()).toBe(403);
+    // the retrieval step flags the planted instructions as untrusted data
+    await page.getByRole('button', { name: 'Why did this happen?', exact: true }).last().click();
+    await expect(page.getByRole('dialog')).toContainText(/Instruction-like text found in "Payer A Bulletin/);
   });
 
   test('09 compliance audit, recorded labs and architecture work', async ({ page }) => {
-    await login(page, 'dana');
+    await enterAs(page, 'dana');
     await page.getByRole('link', { name: 'Audit Log', exact: false }).click();
+    // the full chain from this walkthrough is in the shared audit log
+    const log = page.getByRole('table');
+    for (const kind of ['Demo reset', 'Pto requested', 'Pto decided', 'Access denied', 'Action executed', 'Resource not found', 'Injection detected']) await expect(log).toContainText(kind);
     await page.getByLabel('Security events only', { exact: true }).check();
     await expect(page.getByRole('table')).toContainText('Access denied');
     await page.getByRole('button', { name: 'View trace', exact: true }).first().click();

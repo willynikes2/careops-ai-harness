@@ -30,6 +30,22 @@ export function createTraceDrawer() {
       content.replaceChildren(el('p', { class: 'notice error', role: 'alert' }, result.error.message));
       return;
     }
+    const d = result.decision;
+    const row = (label, value, tone) => [el('dt', {}, label), el('dd', tone ? { class: `decision-${tone}` } : {}, value)];
+    const decisionCard = d ? el('section', { class: 'decision-card', 'aria-label': 'Decision summary' }, el('h3', {}, 'Decision summary'), el('dl', { class: 'decision-grid' },
+      ...row('Identity', `${d.actor} — ${roles[d.role] ?? d.role}`),
+      ...row('Intent', d.intent ? labelize(d.intent) : '—'),
+      ...row('Required permission', d.requiredPermission ?? '—'),
+      ...row('Authorization', d.authorization ?? '—', d.authorization === 'DENIED' ? 'bad' : 'good'),
+      ...row('Restricted retrieval', d.restrictedRetrieval),
+      ...row('Model received restricted data', d.modelReceivedRestrictedData, 'good'),
+      ...row('Sources', d.sources?.length ? d.sources.join(' · ') : 'None'),
+      ...row('Reasoning model', d.model ?? 'Not called'),
+      ...row('Requested action', d.requestedAction ?? 'None'),
+      ...row('Validation', d.validation, /FAILED|REJECTED/.test(d.validation ?? '') ? 'bad' : null),
+      ...row('Execution', d.execution, d.execution === 'SUCCESS' ? 'good' : d.execution === 'REJECTED' ? 'bad' : null),
+      ...(d.stateChange ? row('State change', d.stateChange) : []),
+      ...row('Audit', [d.auditEventId, d.securityEventId && `${d.securityEventId} (security)`, d.executionAuditId && `${d.executionAuditId} (execution)`].filter(Boolean).join(' · ') || '—'))) : null;
     const timeline = el('ol', { class: 'timeline' });
     for (const name of steps) {
       const step = result.steps.find(item => item.name === name);
@@ -39,6 +55,6 @@ export function createTraceDrawer() {
         el('div', {}, el('div', { class: 'trace-step-heading' }, el('h3', {}, labelize(name)), el('span', { class: 'muted small' }, step ? `${labelize(status)} · ${step.ms} ms` : 'Not recorded')),
           el('p', {}, step?.summary ?? 'This step was not recorded for this turn.'), step ? details('Technical details', step.detail) : null)));
     }
-    content.replaceChildren(el('p', { class: 'muted' }, `${result.user.displayName} · ${roles[result.user.role] ?? result.user.role} · ${timestamp(result.at)}`), el('p', { class: 'small muted' }, 'Follow the checks made for this answer. Expand a step to inspect its recorded details.'), timeline);
+    content.replaceChildren(el('p', { class: 'muted' }, `${result.user.displayName} · ${roles[result.user.role] ?? result.user.role} · ${timestamp(result.at)}`), decisionCard ?? '', el('h3', { class: 'timeline-title' }, 'Step by step'), el('p', { class: 'small muted' }, 'Expand a step to inspect its recorded details.'), timeline);
   };
 }

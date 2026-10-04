@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { el, heading, table, cell, pill, timestamp, notice, message, busy, loading, empty, button, details, roles, labelize, dataChanged } from './shared.js';
+import { el, heading, table, cell, pill, timestamp, notice, message, loading, empty, button, details, roles, labelize } from './shared.js';
 
 export function audit(root, ctx) {
   const feedback = notice();
@@ -14,20 +14,10 @@ export function audit(root, ctx) {
     else clearInterval(timer);
   });
   automatic.setAttribute('aria-pressed', 'false');
-  const reset = button('Reset demo data', async () => {
-    if (!window.confirm('Reset all shared demo business data to the starting records? Other signed-in viewers will see the reset. Sessions remain signed in.')) return;
-    busy(reset, true, 'Resetting…');
-    message(feedback, '');
-    const result = await api('/admin/reset', { method: 'POST' });
-    if (!ctx.active()) return;
-    busy(reset, false);
-    if (result.error) message(feedback, result.error.message);
-    else { message(feedback, 'Demo data reset. Sessions are still signed in.', 'success'); dataChanged(); }
-  }, 'button danger');
   let enabled = false;
   let timer;
   let ticket = 0;
-  root.append(heading('Audit Log', 'See who did what, and inspect the checks behind each assistant turn.', reset), feedback,
+  root.append(heading('Audit Log', 'See who did what, and inspect the checks behind each assistant turn. Reset lives in Demo Controls.'), feedback,
     el('div', { class: 'toolbar' }, el('label', { class: 'checkbox-label', for: 'security-only' }, filter, 'Security events only'), el('div', { class: 'button-row' }, refresh, automatic)),
     el('p', { class: 'small muted' }, 'Showing up to 100 events, newest first. Auto-refresh checks every 15 seconds.'), content);
   async function load() {

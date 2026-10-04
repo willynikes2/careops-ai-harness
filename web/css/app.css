@@ -266,3 +266,16 @@ progress::-moz-progress-bar { border-radius: 8px; background: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
 }
+
+/* Decision summary at the top of "Why did this happen?" */
+.decision-card { border: 1px solid var(--line, #d8e1e6); border-radius: 12px; padding: 14px 16px; margin: 12px 0 18px; background: #f7fbfb; }
+.decision-card h3 { margin: 0 0 10px; font-size: 1rem; }
+.decision-grid { display: grid; grid-template-columns: minmax(150px, 38%) 1fr; gap: 6px 14px; margin: 0; }
+.decision-grid dt { color: #5b6b75; font-size: 0.86rem; }
+.decision-grid dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.decision-good { color: #0b7a5b; }
+.decision-bad { color: #b42318; }
+.timeline-title { margin: 6px 0 2px; font-size: 1rem; }
+.persona-row.is-busy { opacity: 0.7; }
+.plain-list { margin: 0; padding-left: 1.1rem; }
+.plain-list li { margin: 4px 0; }
