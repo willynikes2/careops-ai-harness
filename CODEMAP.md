@@ -47,10 +47,11 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [context.js](src/harness/context.js) | 25 | `OUTPUT_CONTRACT`, `buildModelInput` | — |
-| [pipeline.js](src/harness/pipeline.js) | 188 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
+| [leaks.js](src/harness/leaks.js) | 3 | `INTERNAL_FORMAT` | Internal response-format details that can only come from the system prompt / output contract. |
+| [pipeline.js](src/harness/pipeline.js) | 196 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
 | [prompts.js](src/harness/prompts.js) | 5 | `CANARY`, `loadPrompts` | A string that never appears in a legitimate answer; seeing it in output means the system prompt leaked. |
 | [trace.js](src/harness/trace.js) | 9 | `startTrace` | — |
-| [validate.js](src/harness/validate.js) | 24 | `validateTurn` | The model's output is a proposal. Every claim it makes that the app can check, the app checks. |
+| [validate.js](src/harness/validate.js) | 29 | `validateTurn` | The model's output is a proposal. Every claim it makes that the app can check, the app checks. |
 
 ## src/http
 
@@ -91,7 +92,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [kbClient.js](src/retrieval/kbClient.js) | 16 | `createKbClient` | HTTP client for the separate knowledge-base-server instance (internal network, API key). |
-| [retrieve.js](src/retrieval/retrieve.js) | 25 | `retrieveForUser`, `INSTRUCTION_LIKE`, `flagInstructionLike`, `buildQuery`, `renderDocs` | Authorization is applied to retrieval results BEFORE any content reaches the model. |
+| [retrieve.js](src/retrieval/retrieve.js) | 28 | `retrieveForUser`, `INSTRUCTION_LIKE`, `flagInstructionLike`, `buildQuery`, `renderDocs` | Authorization is applied to retrieval results BEFORE any content reaches the model. |
 
 ## src/routes
 
@@ -109,7 +110,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [actions.js](src/tools/actions.js) | 34 | `proposeAction`, `confirmAction` | — |
-| [registry.js](src/tools/registry.js) | 42 | `TOOLS`, `getTool`, `allowedToolsFor`, `validateProposal` | The ONLY operations a model can propose. Each is narrow, schema-checked, re-authorized at execution, and idempotent via pending_actions. |
+| [registry.js](src/tools/registry.js) | 45 | `TOOLS`, `getTool`, `allowedToolsFor`, `validateProposal` | The ONLY operations a model can propose. Each is narrow, schema-checked, re-authorized at execution, and idempotent via pending_actions. |
 
 ## src/util
 

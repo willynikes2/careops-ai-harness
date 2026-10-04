@@ -43,12 +43,12 @@ Live runs on the deployed app. Raw data: [model lab](docs/results/model-lab-2026
 
 | Model | Passed | Cost per 1,000 answers | Avg latency |
 |---|---|---|---|
-| Qwen3 235B (open-weight) | 36/36 | $0.23 | 2.4 s |
-| Claude Sonnet 5.5 | 36/36 | $9.70 | 3.0 s |
-| GPT-5.4 mini | 34/36 | $0.86 | 1.0 s |
-| GPT-OSS 120B (open-weight) | 29/35 (+1 provider timeout) | $0.20 | 2.9 s |
+| Qwen3 235B (open-weight) | 36/36 | $0.41 | 2.0 s |
+| Claude Sonnet 5.5 | 36/36 | $9.56 | 2.3 s |
+| GPT-5.4 mini | 35/36 | $1.11 | 1.3 s |
+| GPT-OSS 120B (open-weight) | 27/34 (+2 provider timeouts) | $0.44 | 0.8 s |
 
-The app chose Qwen3 as the chat default: it is the cheapest model to reliably clear the 90% bar. On this task set it matched the frontier model at about 1/40 of the cost.
+The app chose Qwen3 as the chat default: it is the cheapest model to reliably clear the 90% bar. On this task set it matched the frontier model at about 1/23 of the cost. Requests ask OpenRouter for the lowest-latency provider of the chosen model, which trades a little cost for faster live answers.
 
 **Attack Lab:** 10 direct attacks from the Skill Augment red-team corpus plus 1 poisoned knowledge-base document, run against the baseline and the hardened prompt on Qwen3.
 
@@ -57,7 +57,7 @@ The app chose Qwen3 as the chat default: it is the cheapest model to reliably cl
 | Baseline prompt | 1/11 | 1/11 | 0/11 |
 | Hardened prompt | 0/11 | 0/11 | 0/11 |
 
-The one baseline leak (`data-exfil`) started reciting its instructions; the harness withheld that answer before the user saw it. The hardened prompt did not leak. Across all 22 runs, no permission, record or action crossed a boundary.
+The one baseline leak (`data-exfil`) started reciting its rules and response format; the harness withheld that answer before the user saw it (answers that repeat the system prompt or the internal response format are withheld as a security event). The hardened prompt did not leak. Across all 22 runs, no permission, record or action crossed a boundary.
 
 **Measurement bugs caught while building.** Each one has a regression test.
 - The ported red-team judge matched the words "system prompt", so it scored polite refusals as leaks: 7 false leaks in the first run. It now requires evidence that the model complied.
