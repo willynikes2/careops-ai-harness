@@ -2,6 +2,9 @@ import { MODELS } from '../llm/models.js';
 import { parseModelOutput } from '../llm/contract.js';
 import { fixedClock } from '../util/clock.js';
 import { createHarness } from '../harness/pipeline.js';
+import { openDb } from '../db/index.js';
+import { seedDb } from '../db/seed.js';
+import { createAudit } from '../audit/audit.js';
 import { EVAL_ITEMS, EVAL_NOW } from './evalSet.js';
 
 // Five binary criteria per answer; an item passes only if all five pass.
@@ -33,11 +36,15 @@ export function chooseDefault(models) {
 const userById = (db, id) => { const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id); return { id: u.id, username: u.username, displayName: u.display_name, role: u.role, managerId: u.manager_id }; };
 
 export async function runModelLab({ db, kb, provider, audit, budget, prompts, config, reps = 3 }) {
-  // Fixed clock keeps date-dependent items reproducible; proposals are never confirmed, so no business data changes.
-  const harness = createHarness({ db, kb, provider, clock: fixedClock(EVAL_NOW), audit, budget, prompts, config });
+  // Evals run on a private, freshly seeded in-memory copy of the demo world with a fixed clock, so results are
+  // reproducible and independent of whatever the live demo has done. Only spend (budget) and the final result touch the live DB.
+  const clock = fixedClock(EVAL_NOW);
+  const evalDb = openDb(':memory:');
+  seedDb(evalDb, { clock, demoPassword: 'eval-only' });
+  const harness = createHarness({ db: evalDb, kb, provider, clock, audit: createAudit(evalDb, clock), budget, prompts, config });
   const rows = [];
   for (const m of MODELS) for (let rep = 1; rep <= reps; rep += 1) for (const item of EVAL_ITEMS) {
-    const turn = await harness.runTurn({ user: userById(db, item.user), message: item.message, model: m.id, purpose: 'lab' });
+    const turn = await harness.runTurn({ user: userById(evalDb, item.user), message: item.message, model: m.id, purpose: 'lab' });
     const s = scoreTurn(item, turn);
     rows.push({ itemId: item.id, question: item.message, model: m.id, rep, pass: s.pass, failed: s.failed, criteria: s.criteria, infraError: s.infraError, costUsd: turn.costUsd, latencyMs: turn.latencyMs });
   }
