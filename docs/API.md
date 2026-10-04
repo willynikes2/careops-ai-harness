@@ -9,7 +9,7 @@ Frontend (`web/`) and backend (`src/`) are built in parallel against this file. 
 - Errors: HTTP 4xx/5xx with body `{"error": {"code": "string", "message": "user-safe text", "correlationId": "string"}}`.
   Codes used: `unauthenticated` (401), `forbidden` (403), `not_found` (404), `invalid_request` (400), `conflict` (409), `rate_limited` (429), `ai_unavailable` (503), `internal` (500).
 - Dates are `YYYY-MM-DD` (America/New_York calendar). Timestamps are ISO-8601 UTC strings. Money is integer cents.
-- `idempotencyKey`: client-generated UUID (`crypto.randomUUID()`), one per user click. Re-sending the same key returns the original result and never creates a second record.
+- `idempotencyKey`: client-generated UUID (`crypto.randomUUID()`), one per intended action: the client reuses it when retrying the same action (e.g. after a dropped connection) and makes a new one when the action changes or succeeds. Re-sending the same key returns the original result and never creates a second record.
 
 ## Types
 

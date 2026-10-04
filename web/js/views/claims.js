@@ -70,6 +70,7 @@ export function claims(root, ctx) {
     if (successText) message(localFeedback, successText, 'success');
     if (focus) { title.focus(); panel.scrollIntoView({ block: 'nearest' }); }
     let pending = false;
+    let followupAttempt = null; // same key for the same follow-up until it succeeds (the panel re-renders after success)
     async function mutate(path, body, control, success) {
       if (pending) return;
       pending = true;
@@ -88,7 +89,9 @@ export function claims(root, ctx) {
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (!note.value.trim()) { note.setCustomValidity('Write a note describing the next step.'); note.reportValidity(); return; }
-      if (!pending) mutate('followups', { kind: kind.value, note: note.value.trim(), idempotencyKey: newKey() }, add, 'Follow-up created.');
+      const intent = `${kind.value}\n${note.value.trim()}`;
+      if (!followupAttempt || followupAttempt.intent !== intent) followupAttempt = { intent, key: newKey() };
+      if (!pending) mutate('followups', { kind: kind.value, note: note.value.trim(), idempotencyKey: followupAttempt.key }, add, 'Follow-up created.');
     });
     note.addEventListener('input', () => note.setCustomValidity(''));
     transition.addEventListener('submit', event => { event.preventDefault(); mutate('transition', { to: target.value }, change, 'Claim status updated.'); });

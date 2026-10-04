@@ -31,11 +31,14 @@ export function pto(root, ctx) {
     for (const request of result.requests) grid.body.append(el('tr', {}, cell(date(request.date)), cell(hours(request.hours)), cell(pill(request.status)), cell(timestamp(request.createdAt))));
     requests.replaceChildren(grid.node);
   }
+  // One key per intended request: a retry after a dropped connection replays instead of duplicating; a new date gets a new key.
+  let attempt = null;
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (submit.disabled) return;
     const selected = dateInput.value;
-    const idempotencyKey = newKey();
+    if (!attempt || attempt.date !== selected) attempt = { date: selected, key: newKey() };
+    const idempotencyKey = attempt.key;
     busy(submit, true, 'Submitting…');
     dateInput.disabled = true;
     message(feedback, '');
@@ -45,6 +48,7 @@ export function pto(root, ctx) {
     if (!ctx.active()) return;
     if (result.error) message(feedback, result.error.message);
     else {
+      attempt = null;
       form.reset();
       message(feedback, `Your request for ${date(result.date)} was submitted. Status: ${result.status.toLowerCase()}.`, 'success');
       await load();

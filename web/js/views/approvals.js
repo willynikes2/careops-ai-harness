@@ -11,6 +11,7 @@ export function approvals(root, ctx) {
     const node = el('tr');
     const actions = el('div', { class: 'button-row' });
     if (request.status === 'PENDING') {
+      const keys = { APPROVED: newKey(), DENIED: newKey() }; // stable per row and decision, so a retry replays
       const approve = button('Approve', () => decide('APPROVED', approve), 'button primary small-button');
       const deny = button('Deny', () => decide('DENIED', deny), 'button danger small-button');
       actions.append(approve, deny);
@@ -18,7 +19,7 @@ export function approvals(root, ctx) {
         if (selected.disabled) return;
         approve.disabled = true;
         deny.disabled = true;
-        const idempotencyKey = newKey();
+        const idempotencyKey = keys[decision];
         busy(selected, true, 'Saving…');
         message(feedback, '');
         const result = await api(`/pto/requests/${encodeURIComponent(request.id)}/decision`, { method: 'POST', body: { decision, idempotencyKey } });
