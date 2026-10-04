@@ -64,3 +64,11 @@ test('model lab runs on its own seeded data, independent of live state', async (
   assert.equal(labAudit, 0, 'lab turns must not flood the live audit log');
   assert.ok(app.db.prepare('SELECT COUNT(*) n FROM audit_events').get().n >= auditBefore);
 });
+
+test('choosing the default counts provider errors as misses (a demo needs answers, not timeouts)', () => {
+  const models = [
+    { id: 'flaky-cheap', passRate: 31 / 34, passed: 31, total: 34, errors: 2, avgCostUsd: 0.0001 },
+    { id: 'steady', passRate: 1, passed: 36, total: 36, errors: 0, avgCostUsd: 0.0003 },
+  ];
+  assert.equal(chooseDefault(models), 'steady');
+});

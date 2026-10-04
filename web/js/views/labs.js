@@ -82,7 +82,7 @@ export function modelLab(root, ctx) {
         const scored = model.total > 0;
         const percent = Math.round(model.passRate * 100);
         const name = el('div', {}, el('strong', {}, model.label));
-        if (chosen) name.append(el('p', { class: 'chosen-note' }, !scored ? 'Default fallback: no scored answers' : model.passRate >= 0.9 ? 'Chosen: cheapest model meeting the 90% bar' : 'Chosen: best available result; below the 90% bar'));
+        if (chosen) name.append(el('p', { class: 'chosen-note' }, !scored ? 'Default fallback: no scored answers' : model.passRate >= 0.9 ? 'Chosen: cheapest model meeting the 90% bar (provider errors count as misses here)' : 'Chosen: best available result; below the 90% bar'));
         const meter = el('div', { class: 'pass-rate' }, el('strong', {}, scored ? `${percent}%` : 'Not scored'), scored ? el('progress', { max: '1', value: String(model.passRate), 'aria-label': `${model.label} pass rate` }) : null, el('span', { class: 'small muted' }, `${model.passed}/${model.total} scored answers`));
         grid.body.append(el('tr', { class: chosen ? 'chosen-row' : '' }, cell(name), cell(meter), cell(String(model.errors ?? 0)), ...Object.keys(criteria).map(key => cell(scored ? `${model.criteria[key]}/${model.total}` : '—')), cell(scored ? cost(model.avgCostUsd) : '—'), cell(scored ? cost(model.costPer1k) : '—'), cell(scored ? `${(model.avgLatencyMs / 1000).toFixed(2)} s` : '—')));
       }

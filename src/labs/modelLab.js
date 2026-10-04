@@ -29,9 +29,11 @@ export function summarizeModel(m, rows) {
   return { id: m.id, label: m.label, passed, total: n, errors: mine.length - n, passRate: n ? passed / n : 0, criteria,
     avgCostUsd, costPer1k: avgCostUsd * 1000, avgLatencyMs: n ? Math.round(scored.reduce((a, r) => a + r.latencyMs, 0) / n) : 0 };
 }
+// Selection counts provider errors as misses (reported pass rates exclude them): the chat default must answer reliably.
+const reliability = (m) => (m.total === undefined ? m.passRate : m.passed / Math.max(1, m.total + (m.errors ?? 0)));
 export function chooseDefault(models) {
-  const ok = models.filter(m => m.passRate >= 0.9).sort((a, b) => a.avgCostUsd - b.avgCostUsd);
-  return (ok[0] ?? [...models].sort((a, b) => b.passRate - a.passRate)[0]).id;
+  const ok = models.filter(m => reliability(m) >= 0.9).sort((a, b) => a.avgCostUsd - b.avgCostUsd);
+  return (ok[0] ?? [...models].sort((a, b) => reliability(b) - reliability(a))[0]).id;
 }
 const userById = (db, id) => { const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id); return { id: u.id, username: u.username, displayName: u.display_name, role: u.role, managerId: u.manager_id }; };
 
