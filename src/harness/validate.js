@@ -1,6 +1,7 @@
 import { parseModelOutput } from '../llm/contract.js';
 import { validateProposal } from '../tools/registry.js';
 import { CANARY } from './prompts.js';
+import { INTERNAL_FORMAT } from './leaks.js';
 
 // The model's output is a proposal. Every claim it makes that the app can check, the app checks.
 export function validateTurn({ text, docs, facts, user, intent, message = '' }) {
@@ -8,6 +9,7 @@ export function validateTurn({ text, docs, facts, user, intent, message = '' }) 
   if (!parsed.ok) return { ok: false, reason: parsed.reason };
   const data = parsed.data;
   if (String(text).includes(CANARY)) return { ok: false, reason: 'output contained protected system-prompt text' };
+  if (INTERNAL_FORMAT.test(`${data.answer} ${data.needs_clarification ?? ''}`)) return { ok: false, reason: 'output recited internal instructions' };
   // Models sometimes cite "PTO Policy §3" instead of the id; that names a provided document, so resolve it.
   // A citation that matches no provided document still fails closed.
   const resolve = (c) => docs.find(d => d.id === c) ?? docs.find(d => c.toLowerCase().replace(/^["'“]+/, '').startsWith(d.title.toLowerCase()));
