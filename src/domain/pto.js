@@ -14,12 +14,19 @@ export const listMyPto = (db, user) => ({ balance: getBalance(db, user.id) ?? { 
 export const listApprovals = (db, manager) => db.prepare(`${SELECT} WHERE u.manager_id = ? ORDER BY r.created_at DESC`).all(manager.id).map(shape);
 
 // PTO Policy rules are enforced here, in code — not by the model.
+// The calendar rules for a bookable PTO date; null when the date is fine.
+export function ptoDateProblem(today, date) {
+  const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T12:00:00Z`)) && new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) === date;
+  if (!valid) return 'Please give a valid date (YYYY-MM-DD).';
+  if (date <= today) return 'PTO must be requested for a future date.';
+  if (isWeekend(date)) return `${date} is a weekend — PTO is only needed for workdays.`;
+  if (businessDaysUntil(today, date) < 2) return 'PTO Policy §2 requires at least 2 business days notice.';
+  return null;
+}
+
 export function createPtoRequest(db, { user, date, hours = 8, clock }) {
-  const today = nyDate(clock.now());
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T12:00:00Z`))) throw errors.invalid('Please give a valid date (YYYY-MM-DD).');
-  if (date <= today) throw errors.invalid('PTO must be requested for a future date.');
-  if (isWeekend(date)) throw errors.invalid(`${date} is a weekend — PTO is only needed for workdays.`);
-  if (businessDaysUntil(today, date) < 2) throw errors.invalid('PTO Policy §2 requires at least 2 business days notice.');
+  const problem = ptoDateProblem(nyDate(clock.now()), date);
+  if (problem) throw errors.invalid(problem);
   if (!(hours > 0 && hours <= 8)) throw errors.invalid('A PTO request can be at most 8 hours (one full day — PTO Policy §4).');
   return db.transaction(() => {
     const bal = getBalance(db, user.id);

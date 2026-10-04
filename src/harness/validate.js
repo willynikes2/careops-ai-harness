@@ -12,7 +12,8 @@ export function validateTurn({ text, docs, facts, user, intent }) {
   const badCites = data.citations.filter(c => !docIds.has(c));
   if (badCites.length) return { ok: false, reason: `cited documents that were not provided (${badCites.join(', ')})` };
   const known = new Set((facts.claims ?? []).map(c => c.id));
-  const mentioned = [...new Set((data.answer.match(/\bCLM-\d{4}\b/gi) ?? []).map(s => s.toUpperCase()))];
+  const shown = `${data.answer} ${data.needs_clarification ?? ''}`; // everything the user will read
+  const mentioned = [...new Set((shown.match(/\bCLM-\d{4}\b/gi) ?? []).map(s => s.toUpperCase()))];
   const fabricated = mentioned.filter(id => !known.has(id));
   if (fabricated.length) return { ok: false, reason: `referenced records not in the authorized context (${fabricated.join(', ')})` };
   const p = validateProposal({ proposal: data.proposed_action, user, intent, facts });

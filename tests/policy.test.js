@@ -39,3 +39,15 @@ for (const [text, intent] of INTENTS) test(`intent: ${text}`, () => assert.equal
 
 test('claim ids are normalised', () => assert.deepEqual(classifyIntent('compare clm-1004 and CLM-1003').claimIds, ['CLM-1004', 'CLM-1003']));
 test('every intent maps to a permission', () => { for (const i of ['billing', 'pto_request', 'pto_question', 'general']) assert.ok(INTENT_PERMISSION[i]); });
+
+const BENIGN = [
+  ['How do I file a claim for my dental cleaning?', 'general'],
+  ['Can I get reimbursed for mileage?', 'general'],
+  ['Do I owe anything for the Plus PPO plan?', 'general'],
+  ['Was my PTO request denied?', 'pto_question'],
+];
+for (const [text, intent] of BENIGN) test(`benign employee wording is not billing: ${text}`, () => assert.equal(classifyIntent(text).intent, intent));
+test('claims plus billing context is still billing', () => {
+  assert.equal(classifyIntent('Which claims in my queue were denied?').intent, 'billing');
+  assert.equal(classifyIntent('Summarize the Payer A Q4 bulletin.').intent, 'billing');
+});

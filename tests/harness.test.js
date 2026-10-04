@@ -193,3 +193,40 @@ test('instruction-like text in a retrieved document is flagged and audited even 
   assert.deepEqual(retrieval.detail.flaggedDocs.map(d => d.id), ['5']);
   assert.equal(app.db.prepare("SELECT COUNT(*) n FROM audit_events WHERE kind='injection_detected' AND security=1").get().n, 1);
 });
+
+test('minimum necessary: a payer-document question gets no claims; a claims question gets claims without patient names unless asked', async (t) => {
+  const provider = new FakeProvider(() => ({ answer: 'ok' }));
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('marcus');
+  await chat(call, 'Summarize the Payer A Q4 bulletin.');
+  assert.ok(!/CLM-1|Testpatient|Placeholder/.test(provider.calls[0].user), 'bulletin question must not carry claims');
+  await chat(call, 'Which claims in my queue were denied?');
+  assert.match(provider.calls[1].user, /CLM-1004/);
+  assert.ok(!/Testpatient|Placeholder/.test(provider.calls[1].user), 'no patient names unless the question is about patients');
+  await chat(call, 'Show me all denied claims and which patients owe the most money.');
+  assert.match(provider.calls[2].user, /Avery Testpatient/);
+});
+
+test('a clarifying question that names a record outside the facts is withheld', async (t) => {
+  const provider = new FakeProvider([{ answer: 'Which one?', needs_clarification: 'Did you mean CLM-7777?' }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('marcus');
+  assert.equal((await chat(call, 'Why was CLM-1004 denied?')).body.status, 'invalid_output');
+});
+
+test('clarify options only offer dates that can actually be booked', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const r = await chat(call, 'Take next Wednesday off.'); // Tuesday: Oct 7 (1 business day notice, invalid) or Oct 14
+  assert.equal(r.body.status, 'clarify');
+  assert.deepEqual(r.body.clarification.options.map(o => o.message), ['Take 2026-10-14 off.']);
+  assert.match(r.body.clarification.question, /2 business days/);
+});
+
+test('the PTO balance in the facts is labelled as the asker\'s own', async (t) => {
+  const provider = new FakeProvider([{ answer: 'ok' }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('priya');
+  await chat(call, 'How much PTO does Jordan have?');
+  assert.match(provider.calls[0].user, /"yourPtoBalance":\{"owner":"Priya Shah"/);
+});

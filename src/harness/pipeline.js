@@ -3,7 +3,7 @@ import { nyDate } from '../util/clock.js';
 import { formatDate, resolvePtoDate } from '../util/dates.js';
 import { can, INTENT_PERMISSION, ROLE_COLLECTIONS } from '../policy/permissions.js';
 import { classifyIntent } from '../policy/intent.js';
-import { getBalance } from '../domain/pto.js';
+import { getBalance, ptoDateProblem } from '../domain/pto.js';
 import { getAssignedClaim, listAssignedClaims } from '../domain/claims.js';
 import { retrieveForUser, buildQuery, flagInstructionLike } from '../retrieval/retrieve.js';
 import { CANARY } from './prompts.js';
@@ -21,21 +21,29 @@ const UNAVAILABLE = 'The AI service is unavailable right now — your data is un
 const SKIP = (trace, names, why) => names.forEach(n => trace.add(n, 'skipped', why));
 
 // Minimum necessary, scoped to this user: the only personal data the model will ever see.
-export function gatherFacts(db, user, intent, claimIds, dateRes) {
+const ASKS_ABOUT_CLAIMS = /\b(claims?|denials?|denied|queue|owe[sd]?|balances?|outstanding)\b/i;
+const ASKS_ABOUT_PATIENTS = /\b(patients?|who)\b/i;
+export function gatherFacts(db, user, intent, claimIds, dateRes, message = '') {
   const facts = {};
   if ((intent === 'pto_question' || intent === 'pto_request') && can(user, 'pto:read:self')) {
     const b = getBalance(db, user.id);
-    if (b) facts.ptoBalance = { ...b, hoursRequestable: b.hoursAvailable - b.hoursPending };
+    // labelled as the asker's own, so a manager asking about a report can't have it misattributed
+    if (b) facts.yourPtoBalance = { owner: user.displayName, ...b, hoursRequestable: b.hoursAvailable - b.hoursPending };
   }
   if (intent === 'billing') {
-    facts.claims = claimIds.length ? claimIds.map(id => getAssignedClaim(db, user, id)).filter(Boolean) : listAssignedClaims(db, user).filter(c => c.status === 'DENIED');
+    if (claimIds.length) facts.claims = claimIds.map(id => getAssignedClaim(db, user, id)).filter(Boolean);
+    else if (ASKS_ABOUT_CLAIMS.test(message)) {
+      // minimum necessary: the denied queue only when the question is about claims, patient names only when asked
+      const keepNames = ASKS_ABOUT_PATIENTS.test(message);
+      facts.claims = listAssignedClaims(db, user).filter(c => c.status === 'DENIED').map(c => (keepNames ? c : { ...c, patientName: undefined }));
+    } else facts.claims = [];
     facts.missingClaimIds = claimIds.filter(id => !facts.claims.some(c => c.id === id));
   }
   if (dateRes?.kind === 'date') facts.ptoDateCandidates = [dateRes.date];
   return facts;
 }
 const describeFacts = (f) => [
-  f.ptoBalance && `PTO balance ${f.ptoBalance.hoursAvailable} h (${f.ptoBalance.hoursPending} h pending)`,
+  f.yourPtoBalance && `${f.yourPtoBalance.owner}'s PTO balance ${f.yourPtoBalance.hoursAvailable} h (${f.yourPtoBalance.hoursPending} h pending)`,
   f.claims && `${f.claims.length} authorized claim(s)${f.claims.length ? `: ${f.claims.map(c => c.id).join(', ')}` : ''}`,
   f.ptoDateCandidates && `date resolved deterministically to ${f.ptoDateCandidates[0]}`,
 ].filter(Boolean).join('; ') || 'No personal records needed.';
@@ -72,7 +80,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
 
     // 2. STATE — authoritative facts from the database
     const dateRes = intent === 'pto_request' ? resolvePtoDate(message, clock.now()) : null;
-    const facts = gatherFacts(db, user, intent, claimIds, dateRes);
+    const facts = gatherFacts(db, user, intent, claimIds, dateRes, message);
     trace.add('state', 'ok', describeFacts(facts), { facts });
 
     if (facts.missingClaimIds?.length) {
@@ -85,9 +93,19 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     }
     if (dateRes && dateRes.kind !== 'date') {
       SKIP(trace, ['retrieval', 'reasoning'], 'The date must be settled before any action is proposed.');
-      const clarification = dateRes.kind === 'ambiguous'
-        ? { question: `"${dateRes.phrase}" could mean ${formatDate(dateRes.candidates[0])} or ${formatDate(dateRes.candidates[1])}. Which one did you mean?`, options: dateRes.candidates.map(d => ({ label: formatDate(d), message: `Take ${d} off.` })) }
-        : { question: 'Which date would you like off? Say a weekday (for example "this Friday") or a date like 2026-10-16.', options: [] };
+      let clarification = { question: 'Which date would you like off? Say a weekday (for example "this Friday") or a date like 2026-10-16.', options: [] };
+      if (dateRes.kind === 'ambiguous') {
+        // only offer dates that pass the PTO rules; explain any that don't
+        const today = nyDate(clock.now());
+        const [a, b] = dateRes.candidates;
+        const bookable = dateRes.candidates.filter(d => !ptoDateProblem(today, d));
+        const blocked = dateRes.candidates.filter(d => ptoDateProblem(today, d));
+        const why = blocked.map(d => `${formatDate(d)} isn't available: ${ptoDateProblem(today, d)}`).join(' ');
+        const question = bookable.length === 2 ? `"${dateRes.phrase}" could mean ${formatDate(a)} or ${formatDate(b)}. Which one did you mean?`
+          : bookable.length === 1 ? `"${dateRes.phrase}" could mean ${formatDate(a)} or ${formatDate(b)}. ${why} Did you mean ${formatDate(bookable[0])}?`
+          : `"${dateRes.phrase}" could mean ${formatDate(a)} or ${formatDate(b)}, but neither can be booked. ${why}`;
+        clarification = { question, options: bookable.map(d => ({ label: formatDate(d), message: `Take ${d} off.` })) };
+      }
       trace.add('validation', 'ok', dateRes.kind === 'ambiguous' ? `Ambiguous date (${dateRes.candidates.join(' or ')}) — asking instead of assuming.` : 'No date given — asking.', { dateResolution: dateRes });
       trace.add('execution', 'skipped', 'Nothing changes until the date is confirmed.');
       return reply({ status: 'clarify', answer: clarification.question, clarification });
