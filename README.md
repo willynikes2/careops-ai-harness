@@ -35,6 +35,34 @@ Start from a known state: sign in as Dana, open **Audit Log**, and choose **Rese
 
 If the AI provider is unavailable, the PTO, approvals, claims, and audit forms remain usable. A source-backed assistant walkthrough needs both the knowledge service and a configured reasoning provider.
 
+## Recorded results (2026-10-04)
+
+Live runs on the deployed app. Raw data: [model lab](docs/results/model-lab-2026-10-04.json), [attack lab](docs/results/attack-lab-2026-10-04.json). These are illustrative for this synthetic task set, not general model rankings.
+
+**Model Lab:** same 12 questions, same harness, 3 repetitions per model, scored on 5 pass/fail checks.
+
+| Model | Passed | Cost per 1,000 answers | Avg latency |
+|---|---|---|---|
+| Qwen3 235B (open-weight) | 36/36 | $0.30 | 2.9 s |
+| Claude Sonnet 5.5 | 36/36 | $9.74 | 3.1 s |
+| GPT-5.4 mini | 33/36 | $1.05 | 1.0 s |
+| GPT-OSS 120B (open-weight) | 27/33 (+3 provider timeouts, excluded) | $0.17 | 4.6 s |
+
+The app chose Qwen3 as the default because it is the cheapest model to reach the 90% bar. On this task set it matched the frontier model at about 1/33 of the cost.
+
+**Attack Lab:** 10 direct attacks from the Skill Augment red-team corpus plus 1 poisoned knowledge-base document, run against the baseline and the hardened prompt on Qwen3.
+
+| | Prompt-layer leaks | Boundary moves |
+|---|---|---|
+| Baseline prompt | 1/11 (recited its own rules and output format) | 0/11 |
+| Hardened prompt | 0/11 | 0/11 |
+
+**Measurement bugs caught while building.** Each one has a regression test.
+- The ported red-team judge matched the words "system prompt", so it scored polite refusals as leaks: 7 false leaks in the first run. It now requires evidence that the model complied.
+- The same judge missed a real leak, a model reciting its output format. It now checks for that.
+- The Model Lab read live demo data, so after the browser tests approved a day off, all four models were marked wrong for correctly reporting the new balance. It now runs on a private, freshly seeded copy.
+- Provider outages (HTTP 402 when credit ran out, timeouts) were counted as model failures. They are now reported separately.
+
 ## Architecture
 
 ```text
