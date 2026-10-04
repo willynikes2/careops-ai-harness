@@ -12,7 +12,7 @@ const publicUser = (u) => ({ id: u.id, username: u.username, displayName: u.disp
 export function authRoutes({ db, clock, config, audit }) {
   const r = Router();
   const cookieOpts = { httpOnly: true, sameSite: 'strict', secure: config.secureCookies, path: '/', maxAge: 8 * 3600 * 1000 };
-  r.post('/login', rateLimit({ windowMs: 60_000, limit: 10, handler: (req, res, next) => next(errors.rateLimited()) }), asyncHandler(async (req, res) => {
+  r.post('/login', rateLimit({ windowMs: 60_000, limit: 10, skipSuccessfulRequests: true, handler: (req, res, next) => next(errors.rateLimited()) }), asyncHandler(async (req, res) => {
     const { username, password } = parseBody(Login, req.body);
     const u = db.prepare('SELECT * FROM users WHERE username = ?').get(username.toLowerCase());
     if (!u || !verifyPassword(password, u.password_hash)) {

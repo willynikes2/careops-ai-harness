@@ -46,3 +46,17 @@ test('malformed JSON body is a 400, not a 500', async (t) => {
   assert.equal(r.status, 400);
   assert.equal((await r.json()).error.code, 'invalid_request');
 });
+
+test('successful logins are not rate limited (people switch demo roles quickly)', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  for (let i = 0; i < 12; i++) await app.login(['jordan', 'priya', 'marcus', 'dana'][i % 4]);
+});
+
+test('repeated failed logins are rate limited', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const attempt = () => fetch(`${app.base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'jordan', password: 'wrong' }) });
+  const statuses = [];
+  for (let i = 0; i < 11; i++) statuses.push((await attempt()).status);
+  assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401));
+  assert.equal(statuses[10], 429);
+});

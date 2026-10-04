@@ -124,7 +124,7 @@ test.describe.serial('hiring-manager demo path', () => {
     await expect(page.getByRole('region', { name: 'Claim details' })).toContainText('Authorization documentation');
     await page.getByLabel('New claim status', { exact: true }).selectOption('PAID');
     await page.getByRole('button', { name: 'Update status', exact: true }).click();
-    await expect(page.getByRole('region', { name: 'Claim details' }).getByRole('alert')).toContainText(/cannot|not allowed|transition/i);
+    await expect(page.getByRole('region', { name: 'Claim details' }).getByRole('alert')).toContainText(/can't move to PAID|cannot|not allowed/i);
   });
 
   test('07 missing claims are not fabricated', async ({ page }) => {
