@@ -6,7 +6,7 @@ import { listAssignedClaims, getAssignedClaim, listTasks, createFollowup, transi
 import { withIdempotency } from '../domain/idempotency.js';
 
 const Followup = z.object({ kind: z.enum(TASK_KINDS), note: z.string().trim().min(1).max(500), idempotencyKey: z.string().min(1).max(100) });
-const Transition = z.object({ to: z.enum(Object.keys(CLAIM_TRANSITIONS)) });
+const Transition = z.object({ to: z.enum(Object.keys(CLAIM_TRANSITIONS)), idempotencyKey: z.string().min(1).max(100).optional() });
 
 export function claimRoutes({ db, clock, audit }) {
   const r = Router();
@@ -26,11 +26,10 @@ export function claimRoutes({ db, clock, audit }) {
     }));
   });
   r.post('/claims/:id/transition', (req, res) => {
-    const { to } = parseBody(Transition, req.body);
+    const { to, idempotencyKey } = parseBody(Transition, req.body);
+    const run = () => { const c = transitionClaim(db, { user: req.user, claimId: req.params.id, to }); audit.event({ actor: req.user, kind: 'claim_transition', detail: { claimId: c.id, to } }); return c; };
     try {
-      const c = transitionClaim(db, { user: req.user, claimId: req.params.id, to });
-      audit.event({ actor: req.user, kind: 'claim_transition', detail: { claimId: c.id, to } });
-      res.json(c);
+      res.json(idempotencyKey ? withIdempotency(db, { key: idempotencyKey, userId: req.user.id, scope: `claims:transition:${req.params.id}` }, run) : run());
     } catch (err) {
       if (err.status === 409) audit.event({ actor: req.user, kind: 'claim_transition_rejected', security: true, detail: { claimId: req.params.id, to, reason: err.message } });
       throw err;

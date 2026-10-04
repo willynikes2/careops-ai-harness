@@ -2,13 +2,19 @@
 export function createAudit(db, clock) {
   const insert = db.prepare('INSERT INTO audit_events (at, actor_id, actor_role, kind, security, turn_id, detail_json) VALUES (?,?,?,?,?,?,?)');
   return {
+    // returns a human-readable event id (EVT-000123) so traces and screens can cite the exact audit record
     event({ actor = null, kind, security = false, turnId = null, detail = {} }) {
-      insert.run(clock.now().toISOString(), actor?.id ?? null, actor?.role ?? null, kind, security ? 1 : 0, turnId, JSON.stringify(detail));
+      const info = insert.run(clock.now().toISOString(), actor?.id ?? null, actor?.role ?? null, kind, security ? 1 : 0, turnId, JSON.stringify(detail));
+      return `EVT-${String(info.lastInsertRowid).padStart(6, '0')}`;
     },
-    saveTrace(t) { db.prepare('INSERT OR REPLACE INTO traces (turn_id, user_id, at, steps_json) VALUES (?,?,?,?)').run(t.turnId, t.user.id, t.at, JSON.stringify(t.steps)); },
+    saveTrace(t) { db.prepare('INSERT OR REPLACE INTO traces (turn_id, user_id, at, steps_json, decision_json) VALUES (?,?,?,?,?)').run(t.turnId, t.user.id, t.at, JSON.stringify(t.steps), JSON.stringify(t.decision ?? null)); },
+    updateDecision(turnId, patch) {
+      const r = db.prepare('SELECT decision_json FROM traces WHERE turn_id = ?').get(turnId);
+      if (r) db.prepare('UPDATE traces SET decision_json = ? WHERE turn_id = ?').run(JSON.stringify({ ...(JSON.parse(r.decision_json ?? 'null') ?? {}), ...patch }), turnId);
+    },
     getTrace(turnId) {
       const r = db.prepare('SELECT t.*, u.username, u.display_name, u.role FROM traces t JOIN users u ON u.id = t.user_id WHERE t.turn_id = ?').get(turnId);
-      return r ? { turnId: r.turn_id, at: r.at, user: { id: r.user_id, username: r.username, displayName: r.display_name, role: r.role }, steps: JSON.parse(r.steps_json) } : null;
+      return r ? { turnId: r.turn_id, at: r.at, user: { id: r.user_id, username: r.username, displayName: r.display_name, role: r.role }, steps: JSON.parse(r.steps_json), decision: JSON.parse(r.decision_json ?? 'null') } : null;
     },
     list({ securityOnly = false, limit = 100 } = {}) {
       const n = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 500) : 100;

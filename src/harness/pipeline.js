@@ -18,7 +18,7 @@ const DENIAL_TEXT = {
   pto_request: "Your role can't submit PTO requests in CareOps.",
   default: "Your role doesn't have access to that.",
 };
-const UNAVAILABLE = 'The AI service is unavailable right now — your data is unchanged. You can still use the other pages.';
+const UNAVAILABLE = 'AI reasoning is temporarily unavailable. No action was taken. Please try again.';
 const SKIP = (trace, names, why) => names.forEach(n => trace.add(n, 'skipped', why));
 
 // Minimum necessary, scoped to this user: the only personal data the model will ever see.
@@ -58,9 +58,10 @@ export function getDefaultModel(db, config) {
 
 export function createHarness({ db, kb, provider, clock, audit, budget, prompts, config }) {
   function finish(trace, turn, ev) {
-    trace.add('audit', 'ok', `Recorded as ${turn.turnId}.`, { status: turn.status });
+    const eventId = ev({ actor: trace.user, kind: 'chat_turn', turnId: turn.turnId, detail: { status: turn.status, model: turn.model } });
+    trace.decision.auditEventId = eventId;
+    trace.add('audit', 'ok', `Recorded as ${eventId} (turn ${turn.turnId}).`, { status: turn.status, auditEventId: eventId });
     audit.saveTrace(trace.toJSON());
-    ev({ actor: trace.user, kind: 'chat_turn', turnId: turn.turnId, detail: { status: turn.status, model: turn.model } });
     return turn;
   }
 
@@ -70,15 +71,20 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     // lab turns are tagged so they are never mistaken for a real person's activity in the audit log
     const ev = (e) => audit.event(purpose === 'chat' ? e : { ...e, detail: { ...(e.detail ?? {}), purpose } });
     const reply = (f) => finish(trace, { turnId, status: 'answered', answer: '', citations: [], clarification: null, proposedAction: null, model: null, costUsd: 0, latencyMs: 0, ...f }, ev);
+    // Plain-English decision record shown at the top of "Why did this happen?"
+    const decision = trace.decision = { actor: user.displayName, role: user.role, intent: null, requiredPermission: null, authorization: null,
+      restrictedRetrieval: 'NOT EXECUTED', modelReceivedRestrictedData: 'NO', sources: [], model: null, requestedAction: null,
+      validation: 'NOT RUN', execution: 'NONE', stateChange: null, auditEventId: null, securityEventId: null, executionAuditId: null };
     trace.add('identity', 'ok', `Signed in as ${user.displayName} (${user.role}). Identity comes from the server session, not the browser.`, { userId: user.id, role: user.role });
 
     // 1. POLICY — before any data is touched
     const { intent, claimIds } = classifyIntent(message);
     const permission = INTENT_PERMISSION[intent];
+    Object.assign(decision, { intent, requiredPermission: permission, authorization: can(user, permission) ? 'ALLOWED' : 'DENIED' });
     if (!can(user, permission)) {
       trace.add('policy', 'denied', `Classified as "${intent}", which requires "${permission}". The ${user.role} role does not have it, so nothing was retrieved.`, { intent, permission });
       SKIP(trace, ['state', 'retrieval', 'reasoning', 'validation', 'execution'], 'Stopped by policy.');
-      ev({ actor: user, kind: 'access_denied', security: true, turnId, detail: { intent, permission, message: message.slice(0, 200) } });
+      decision.securityEventId = ev({ actor: user, kind: 'access_denied', security: true, turnId, detail: { intent, permission, message: message.slice(0, 200) } });
       return reply({ status: 'denied', answer: DENIAL_TEXT[intent] ?? DENIAL_TEXT.default });
     }
     trace.add('policy', 'ok', `Allowed: "${intent}" requires "${permission}".`, { intent, permission });
@@ -92,6 +98,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       const ids = facts.missingClaimIds.join(', ');
       SKIP(trace, ['retrieval', 'reasoning'], 'No authorized record — the model was not asked to guess.');
       trace.add('validation', 'ok', `Resource check: no authorized claim with ID ${ids}.`, { missing: facts.missingClaimIds });
+      decision.validation = `PASSED — no authorized claim with ID ${ids}; nothing was guessed`;
       trace.add('execution', 'skipped', 'Nothing to execute.');
       ev({ actor: user, kind: 'resource_not_found', turnId, detail: { claimIds: facts.missingClaimIds } });
       return reply({ answer: `No authorized claim with ID ${ids} was found in your queue. I won't guess at a status, patient, payer, or denial reason. Check the claim number, or ask a billing supervisor whether it is assigned to someone else.` });
@@ -121,6 +128,8 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     try {
       const r = await retrieveForUser({ kb, user, query: buildQuery(intent, message, facts, claimIds) });
       docs = r.docs;
+      decision.restrictedRetrieval = `NOT EXECUTED — searched only ${ROLE_COLLECTIONS[user.role].join(', ')}`;
+      decision.sources = docs.map(d => d.title);
       const flaggedDocs = flagInstructionLike(docs);
       const flagNote = flaggedDocs.length ? ` Instruction-like text found in ${flaggedDocs.map(d => `"${d.title}"`).join(', ')} — passed to the model as untrusted data, never as instructions; it cannot grant tools or permissions.` : '';
       trace.add('retrieval', 'ok', `${docs.length} document(s) from ${ROLE_COLLECTIONS[user.role].join(', ')}; ${r.filteredOut} result(s) outside this role were dropped before the model saw anything.${flagNote}`, { docs: docs.map(d => ({ id: d.id, title: d.title, collection: d.collection })), filteredOut: r.filteredOut, flaggedDocs });
@@ -139,6 +148,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     const input = buildModelInput({ systemPrompt: prompts[promptVariant], user, intent, facts, docs, message, today: nyDate(clock.now()) });
     let out;
     try {
+      decision.model = model;
       out = await provider.complete({ model, ...input });
       budget.record({ model, purpose, usage: out.usage, latencyMs: out.latencyMs, ok: true });
       trace.add('reasoning', 'ok', `${model} answered in ${out.latencyMs} ms for $${out.usage.costUsd.toFixed(5)}.`, { model, promptVariant, usage: out.usage, latencyMs: out.latencyMs });
@@ -158,13 +168,18 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       trace.add('validation', 'error', `Withheld: ${v.reason}.`, { reason: v.reason, raw });
       trace.add('execution', 'skipped', 'Nothing executed.');
       ev({ actor: user, kind: 'output_rejected', security: true, turnId, detail: { reason: v.reason, model } });
+      decision.validation = `FAILED — answer withheld: ${v.reason}`;
       return reply({ status: 'invalid_output', answer: "The AI's answer failed a safety check and was withheld.", reason: v.reason, ...meta });
     }
+    decision.requestedAction = v.data.proposed_action?.tool ?? null;
+    decision.sources = v.citations.length ? v.citations.map(c => c.title) : decision.sources;
+    decision.validation = v.actionRejection ? `PASSED with tool request REJECTED: ${v.actionRejection}` : 'PASSED';
     if (v.actionRejection) ev({ actor: user, kind: 'tool_rejected', security: true, turnId, detail: { proposal: v.data.proposed_action, reason: v.actionRejection } });
     trace.add('validation', v.actionRejection ? 'denied' : 'ok', v.summary, { actionRejection: v.actionRejection });
 
     // 6. EXECUTION — deterministic, only after the user confirms
     const proposedAction = v.action ? proposeAction(db, { user, turnId, action: v.action, clock }) : null;
+    decision.execution = proposedAction ? 'AWAITING CONFIRMATION' : 'NONE';
     trace.add('execution', proposedAction ? 'ok' : 'skipped', proposedAction ? `Proposed "${proposedAction.summary}". Waiting for the user to confirm — the model cannot execute it.` : 'No action proposed.', { proposedAction });
     const clarification = v.data.needs_clarification ? { question: v.data.needs_clarification, options: [] } : null;
     return reply({ status: clarification ? 'clarify' : 'answered', answer: v.data.answer, citations: v.citations, proposedAction, clarification, ...meta });

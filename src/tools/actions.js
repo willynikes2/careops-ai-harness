@@ -26,7 +26,8 @@ export function confirmAction(db, { user, actionId, clock, audit }) {
       out = { id: row.id, tool: row.tool, status: 'REJECTED', result: {}, message: err.message };
     }
     db.prepare('UPDATE pending_actions SET status = ?, result_json = ? WHERE id = ?').run(out.status, JSON.stringify(out), row.id);
-    audit.event({ actor: user, kind: out.status === 'EXECUTED' ? 'action_executed' : 'action_rejected', turnId: row.turn_id, detail: { actionId: row.id, tool: row.tool, message: out.message } });
+    const executionAuditId = audit.event({ actor: user, kind: out.status === 'EXECUTED' ? 'action_executed' : 'action_rejected', turnId: row.turn_id, detail: { actionId: row.id, tool: row.tool, message: out.message } });
+    audit.updateDecision(row.turn_id, { execution: out.status === 'EXECUTED' ? 'SUCCESS' : 'REJECTED', stateChange: out.status === 'EXECUTED' ? tool.stateChange(out.result) : `None — ${out.message}`, executionAuditId });
     if (out.status === 'EXECUTED' && row.tool === 'create_pto_request') audit.event({ actor: user, kind: 'pto_requested', turnId: row.turn_id, detail: { requestId: out.result.id, date: out.result.date, via: 'assistant' } });
     return out;
   })();

@@ -13,6 +13,7 @@ export const TOOLS = Object.freeze({
     summarize: (a) => `Request ${a.hours} hours of PTO on ${formatDate(a.date)} (${a.date})`,
     execute: ({ db, user, args, clock }) => createPtoRequest(db, { user, date: args.date, hours: args.hours, clock }),
     resultMessage: (r) => `PTO request for ${r.date} submitted — status ${r.status}. Your manager will see it in Approvals.`,
+    stateChange: (r) => `PTO request ${r.id} created for ${r.date} (status ${r.status})`,
   },
   create_billing_followup: {
     permission: 'billing:task:create', intents: ['billing'],
@@ -21,6 +22,7 @@ export const TOOLS = Object.freeze({
     summarize: (a) => `Create ${a.kind} follow-up on ${a.claimId}: "${a.note}"`,
     execute: ({ db, user, args, clock }) => createFollowup(db, { user, claimId: args.claimId, kind: args.kind, note: args.note, clock }),
     resultMessage: (t) => `${t.kind} follow-up created on ${t.claimId}.`,
+    stateChange: (t) => `Follow-up ${t.id} (${t.kind}) created on ${t.claimId}`,
   },
 });
 export const getTool = (name) => (Object.hasOwn(TOOLS, name) ? TOOLS[name] : null);

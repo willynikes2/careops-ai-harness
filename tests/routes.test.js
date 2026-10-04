@@ -97,3 +97,20 @@ test('chat is also limited per IP address, across sessions', async (t) => {
   const statuses = [await ask(a), await ask(b), await ask(a), await ask(b)].map(r => r.status);
   assert.deepEqual(statuses, [200, 200, 200, 429]);
 });
+
+test('a manager cannot approve an employee outside their team via the API', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const marcus = await app.login('marcus'); const priya = await app.login('priya');
+  const req = await marcus.call('/api/pto/requests', { method: 'POST', body: { date: '2026-10-09', idempotencyKey: 'm1' } });
+  const d = await priya.call(`/api/pto/requests/${req.body.id}/decision`, { method: 'POST', body: { decision: 'APPROVED', idempotencyKey: 'p1' } });
+  assert.equal(d.status, 404);
+  assert.equal(app.db.prepare('SELECT status FROM pto_requests WHERE id = ?').get(req.body.id).status, 'PENDING');
+});
+test('claim status change with the same idempotency key replays instead of failing', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const { call } = await app.login('marcus');
+  const a = await call('/api/claims/CLM-1004/transition', { method: 'POST', body: { to: 'APPEALED', idempotencyKey: 'tr-1' } });
+  const b = await call('/api/claims/CLM-1004/transition', { method: 'POST', body: { to: 'APPEALED', idempotencyKey: 'tr-1' } });
+  assert.equal(a.status, 200); assert.deepEqual(b, a);
+  assert.equal(app.db.prepare("SELECT COUNT(*) n FROM audit_events WHERE kind='claim_transition'").get().n, 1);
+});

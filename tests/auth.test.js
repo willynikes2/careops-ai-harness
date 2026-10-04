@@ -74,3 +74,21 @@ test('an unknown username costs the same password check as a known one (no timin
   const known = await time('jordan'); const unknown = await time('nobody-here');
   assert.ok(unknown > known * 0.5, `unknown ${unknown.toFixed(1)}ms vs known ${known.toFixed(1)}ms`);
 });
+
+const demo = (base, body) => fetch(`${base}/api/auth/demo`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+test('persona shortcut creates a real server session for that persona', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const r = await demo(app.base, { persona: 'marcus' });
+  assert.equal(r.status, 200);
+  const body = await r.json(); assert.equal(body.user.role, 'billing'); assert.ok(body.csrfToken);
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  const me = await (await fetch(`${app.base}/api/auth/me`, { headers: { cookie } })).json();
+  assert.equal(me.user.username, 'marcus');
+  assert.equal(app.db.prepare("SELECT COUNT(*) n FROM audit_events WHERE kind='login_success' AND detail_json LIKE '%persona%'").get().n, 1);
+});
+test('persona shortcut cannot pick a role or a non-demo account', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  assert.equal((await demo(app.base, { persona: 'jordan', role: 'admin' })).status, 400);
+  assert.equal((await demo(app.base, { persona: 'sam' })).status, 400);
+  assert.equal((await demo(app.base, { persona: 'admin' })).status, 400);
+});

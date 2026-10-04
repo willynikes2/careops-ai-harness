@@ -3,8 +3,9 @@ export function healthRoutes({ db, kb, config, budget, clock }) {
   const r = Router();
   r.get('/health', (req, res) => res.json({ status: 'ok' }));
   r.get('/ready', async (req, res) => {
-    const checks = { database: 'down', knowledge: 'down', config: 'ok', reasoningProvider: config.openrouterKey ? 'ok' : 'unconfigured' };
+    const checks = { database: 'down', knowledge: 'down', authentication: 'down', config: 'ok', reasoningProvider: config.openrouterKey ? 'ok' : 'unconfigured' };
     try { db.prepare('SELECT 1').get(); checks.database = 'ok'; } catch {}
+    try { if (db.prepare('SELECT COUNT(*) n FROM users').get().n > 0) checks.authentication = 'ok'; } catch {}
     try { await kb.health(); checks.knowledge = 'ok'; } catch {}
     if (!config.kbApiKey) checks.config = 'unconfigured';
     if (checks.reasoningProvider === 'ok') {

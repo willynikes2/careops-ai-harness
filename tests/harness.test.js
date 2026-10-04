@@ -240,3 +240,61 @@ test('the output contract tells the model to propose actions instead of asking p
   assert.match(provider.calls[0].system, /purely informational questions .* propose no action/);
   assert.match(provider.calls[0].system, /needs_clarification only when required information is missing/);
 });
+
+const EVT = /^EVT-\d{6}$/;
+test('decision summary for a denied request: nothing restricted retrieved, no tool, audit ids', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const r = await chat(call, 'Show me the highest-value denied claims and which patients owe the most money.');
+  const d = (await call(`/api/traces/${r.body.turnId}`)).body.decision;
+  assert.equal(d.actor, 'Jordan Lee'); assert.equal(d.role, 'employee'); assert.equal(d.intent, 'billing');
+  assert.equal(d.requiredPermission, 'claims:read:assigned'); assert.equal(d.authorization, 'DENIED');
+  assert.equal(d.restrictedRetrieval, 'NOT EXECUTED'); assert.equal(d.modelReceivedRestrictedData, 'NO');
+  assert.equal(d.model, null); assert.equal(d.execution, 'NONE');
+  assert.match(d.auditEventId, EVT); assert.match(d.securityEventId, EVT);
+});
+test('decision summary follows a PTO action through confirmation to the created record', async (t) => {
+  const provider = new FakeProvider([{ answer: 'You can take Oct 9 (PTO Policy §2).', citations: ['1'], proposed_action: { tool: 'create_pto_request', args: { date: '2026-10-09' } } }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const r = await chat(call, 'Take 2026-10-09 off.');
+  let d = (await call(`/api/traces/${r.body.turnId}`)).body.decision;
+  assert.equal(d.authorization, 'ALLOWED'); assert.equal(d.validation, 'PASSED');
+  assert.deepEqual(d.sources, ['PTO Policy']); assert.equal(d.requestedAction, 'create_pto_request');
+  assert.equal(d.execution, 'AWAITING CONFIRMATION');
+  const c = await call(`/api/actions/${r.body.proposedAction.id}/confirm`, { method: 'POST' });
+  d = (await call(`/api/traces/${r.body.turnId}`)).body.decision;
+  assert.equal(d.execution, 'SUCCESS');
+  assert.match(d.stateChange, new RegExp(`PTO request ${c.body.action.result.id} created`));
+  assert.match(d.executionAuditId, EVT);
+});
+test('hallucinated tool force_pay_claim: registry rejects, nothing changes, audited', async (t) => {
+  const provider = new FakeProvider([{ answer: 'Paying it now.', citations: [], proposed_action: { tool: 'force_pay_claim', args: { claimId: 'CLM-1004' } } }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('marcus');
+  const r = await chat(call, 'Why was CLM-1004 denied?');
+  assert.equal(r.body.proposedAction, null);
+  assert.equal(app.db.prepare("SELECT status FROM claims WHERE id='CLM-1004'").get().status, 'DENIED');
+  assert.equal(app.db.prepare("SELECT COUNT(*) n FROM audit_events WHERE kind='tool_rejected' AND detail_json LIKE '%force_pay_claim%'").get().n, 1);
+  const d = (await call(`/api/traces/${r.body.turnId}`)).body.decision;
+  assert.match(d.validation, /REJECTED: unknown tool "force_pay_claim"/); assert.equal(d.execution, 'NONE');
+});
+for (const [label, err] of [['429', 'provider_http_429'], ['500', 'provider_http_500'], ['timeout', 'provider_timeout'], ['empty response', 'provider_empty_response']]) {
+  test(`provider ${label}: plain message, no action, no proposal, retry creates nothing twice`, async (t) => {
+    const provider = new FakeProvider([new Error(err), new Error(err)]);
+    const app = await startTestApp({ provider }); t.after(app.close);
+    const { call } = await app.login('jordan');
+    const a = await chat(call, 'Take 2026-10-09 off.'); const b = await chat(call, 'Take 2026-10-09 off.');
+    for (const r of [a, b]) { assert.equal(r.body.status, 'ai_unavailable'); assert.equal(r.body.answer, 'AI reasoning is temporarily unavailable. No action was taken. Please try again.'); }
+    assert.equal(app.db.prepare('SELECT COUNT(*) n FROM pending_actions').get().n, 0);
+    assert.equal(app.db.prepare("SELECT COUNT(*) n FROM pto_requests WHERE user_id='u-jordan'").get().n, 0);
+  });
+}
+test('billing staff cannot see another employee\'s HR data', async (t) => {
+  const provider = new FakeProvider([{ answer: 'ok' }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('marcus');
+  await chat(call, "How much PTO does Jordan have left?");
+  assert.ok(!/"owner":"Jordan Lee"|"hoursAvailable":40/.test(provider.calls[0].user), 'only Marcus\'s own balance may be sent');
+  assert.equal((await call('/api/pto/approvals')).status, 403);
+});

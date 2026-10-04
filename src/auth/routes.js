@@ -6,6 +6,8 @@ import { errors, HttpError } from '../http/errors.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { createSession, destroySession } from './sessions.js';
 
+const DEMO_PERSONAS = ['jordan', 'priya', 'marcus', 'dana'];
+const Persona = z.object({ persona: z.enum(DEMO_PERSONAS) }).strict();
 const Login = z.object({ username: z.string().min(1).max(64), password: z.string().min(1).max(200) });
 // Compared against when the username doesn't exist, so response time doesn't reveal which usernames are real.
 const DUMMY_HASH = hashPassword('careops-no-such-user');
@@ -26,6 +28,16 @@ export function authRoutes({ db, clock, config, audit }) {
     audit.event({ actor: { id: u.id, role: u.role }, kind: 'login_success' });
     res.cookie('careops_sid', s.id, cookieOpts).json({ user: publicUser(u), csrfToken: s.csrf });
   }));
+  // Persona shortcut for the public synthetic demo: the server picks the account and creates a normal session;
+  // the browser can only name one of four demo personas, never a role.
+  r.post('/demo', rateLimit({ windowMs: 60_000, limit: 30, handler: (req, res, next) => next(errors.rateLimited()) }), (req, res) => {
+    const { persona } = parseBody(Persona, req.body);
+    const u = db.prepare('SELECT * FROM users WHERE username = ?').get(persona);
+    if (!u) throw errors.notFound('Demo persona not found.');
+    const s = createSession(db, u.id, clock);
+    audit.event({ actor: { id: u.id, role: u.role }, kind: 'login_success', detail: { via: 'persona' } });
+    res.cookie('careops_sid', s.id, cookieOpts).json({ user: publicUser(u), csrfToken: s.csrf });
+  });
   const authed = requireUser({ db, clock });
   r.get('/me', authed, (req, res) => res.json({ user: publicUser(req.user), csrfToken: req.session.csrf }));
   r.post('/logout', authed, (req, res) => { destroySession(db, req.session.sessionId); res.clearCookie('careops_sid', { path: '/' }).status(204).end(); });
