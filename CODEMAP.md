@@ -9,7 +9,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [app.js](src/app.js) | 46 | `createApp` | — |
-| [config.js](src/config.js) | 13 | `loadConfig` | — |
+| [config.js](src/config.js) | 14 | `loadConfig` | — |
 | [main.js](src/main.js) | 15 | — | — |
 
 ## src/audit
@@ -23,7 +23,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [passwords.js](src/auth/passwords.js) | 3 | `hashPassword`, `verifyPassword` | — |
-| [routes.js](src/auth/routes.js) | 30 | `authRoutes` | — |
+| [routes.js](src/auth/routes.js) | 33 | `authRoutes` | Compared against when the username doesn't exist, so response time doesn't reveal which usernames are real. |
 | [sessions.js](src/auth/sessions.js) | 15 | `createSession`, `loadSession`, `destroySession` | — |
 
 ## src/db
@@ -40,17 +40,17 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | --- | ---: | --- | --- |
 | [claims.js](src/domain/claims.js) | 31 | `CLAIM_TRANSITIONS`, `TASK_KINDS`, `listAssignedClaims`, `getAssignedClaim`, `listTasks`, `createFollowup`, `transitionClaim` | Unassigned and nonexistent claims look identical to the caller: existence is not revealed. |
 | [idempotency.js](src/domain/idempotency.js) | 13 | `withIdempotency` | One business effect per client click: the first result is stored and replayed for the same key. |
-| [pto.js](src/domain/pto.js) | 48 | `getPtoRequest`, `getBalance`, `listMyPto`, `listApprovals`, `createPtoRequest`, `decidePtoRequest` | PTO Policy rules are enforced here, in code — not by the model. |
+| [pto.js](src/domain/pto.js) | 55 | `getPtoRequest`, `getBalance`, `listMyPto`, `listApprovals`, `ptoDateProblem`, `createPtoRequest`, `decidePtoRequest` | PTO Policy rules are enforced here, in code — not by the model. |
 
 ## src/harness
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [context.js](src/harness/context.js) | 25 | `OUTPUT_CONTRACT`, `buildModelInput` | — |
-| [pipeline.js](src/harness/pipeline.js) | 145 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
+| [pipeline.js](src/harness/pipeline.js) | 173 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
 | [prompts.js](src/harness/prompts.js) | 5 | `CANARY`, `loadPrompts` | A string that never appears in a legitimate answer; seeing it in output means the system prompt leaked. |
 | [trace.js](src/harness/trace.js) | 8 | `startTrace` | — |
-| [validate.js](src/harness/validate.js) | 23 | `validateTurn` | The model's output is a proposal. Every claim it makes that the app can check, the app checks. |
+| [validate.js](src/harness/validate.js) | 24 | `validateTurn` | The model's output is a proposal. Every claim it makes that the app can check, the app checks. |
 
 ## src/http
 
@@ -63,10 +63,11 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [attackLab.js](src/labs/attackLab.js) | 30 | `runAttackLab` | Boundary = did anything outside the model's text actually change or escape? |
+| [attackLab.js](src/labs/attackLab.js) | 32 | `runAttackLab` | Boundary = did THIS turn cross anything? Scoped to the turn (not global counts) so other people using the |
 | [attacks.js](src/labs/attacks.js) | 39 | `ATTACKS`, `judgeLeak` | Direct attacks copied verbatim from ~/skill-augment/validation/red-team-test.sh (Skill Augment red-team corpus). |
+| [chooseDefault.js](src/labs/chooseDefault.js) | 6 | `chooseDefault` | Selection counts provider errors as misses (reported pass rates exclude them): the chat default must answer reliably. |
 | [evalSet.js](src/labs/evalSet.js) | 17 | `EVAL_NOW`, `EVAL_ITEMS` | Fixed eval set over the synthetic world. Eval clock is Monday 2026-10-05, so "this Friday" = 2026-10-09 unambiguously. |
-| [modelLab.js](src/labs/modelLab.js) | 55 | `scoreTurn`, `summarizeModel`, `chooseDefault`, `runModelLab` | Five binary criteria per answer; an item passes only if all five pass. |
+| [modelLab.js](src/labs/modelLab.js) | 53 | `scoreTurn`, `summarizeModel`, `runModelLab` | Five binary criteria per answer; an item passes only if all five pass. |
 
 ## src/llm
 
@@ -76,13 +77,13 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | [contract.js](src/llm/contract.js) | 16 | `ModelOutput`, `parseModelOutput` | The only shape a model answer may take. Anything else is withheld. |
 | [fake.js](src/llm/fake.js) | 12 | `FakeProvider` | Scripted provider for tests: an array of responses (consumed in order) or a function (req, n) => response. |
 | [models.js](src/llm/models.js) | 7 | `MODELS`, `isKnownModel` | — |
-| [openrouter.js](src/llm/openrouter.js) | 29 | `ProviderError`, `OpenRouterProvider` | One adapter behind the provider interface: complete({model, system, user}) → {text, usage, latencyMs, model}. |
+| [openrouter.js](src/llm/openrouter.js) | 32 | `ProviderError`, `OpenRouterProvider` | One adapter behind the provider interface: complete({model, system, user}) → {text, usage, latencyMs, model}. |
 
 ## src/policy
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [intent.js](src/policy/intent.js) | 10 | `classifyIntent` | Deterministic, explainable routing. It is NOT the security boundary: state and retrieval are role-scoped regardless. |
+| [intent.js](src/policy/intent.js) | 14 | `classifyIntent` | Deterministic, explainable routing. It is NOT the security boundary: state and retrieval are role-scoped regardless. |
 | [permissions.js](src/policy/permissions.js) | 11 | `ROLE_PERMISSIONS`, `can`, `INTENT_PERMISSION`, `ROLE_COLLECTIONS` | Fail closed: unknown roles and missing users get nothing. |
 
 ## src/retrieval
@@ -90,17 +91,17 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [kbClient.js](src/retrieval/kbClient.js) | 16 | `createKbClient` | HTTP client for the separate knowledge-base-server instance (internal network, API key). |
-| [retrieve.js](src/retrieval/retrieve.js) | 24 | `retrieveForUser`, `buildQuery`, `renderDocs` | Authorization is applied to retrieval results BEFORE any content reaches the model. |
+| [retrieve.js](src/retrieval/retrieve.js) | 25 | `retrieveForUser`, `INSTRUCTION_LIKE`, `flagInstructionLike`, `buildQuery`, `renderDocs` | Authorization is applied to retrieval results BEFORE any content reaches the model. |
 
 ## src/routes
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [admin.js](src/routes/admin.js) | 14 | `adminRoutes` | — |
-| [chat.js](src/routes/chat.js) | 29 | `chatRoutes` | — |
+| [chat.js](src/routes/chat.js) | 32 | `chatRoutes` | Withheld model output is visible only to compliance (admin); the turn's owner sees why, not what. |
 | [claims.js](src/routes/claims.js) | 40 | `claimRoutes` | — |
-| [health.js](src/routes/health.js) | 14 | `healthRoutes` | — |
-| [labs.js](src/routes/labs.js) | 31 | `labRoutes` | — |
+| [health.js](src/routes/health.js) | 19 | `healthRoutes` | — |
+| [labs.js](src/routes/labs.js) | 34 | `labRoutes` | One lab run at a time: runs take minutes and spend money. |
 | [pto.js](src/routes/pto.js) | 33 | `ptoRoutes` | — |
 
 ## src/tools
