@@ -15,7 +15,8 @@ const forViewer = (trace, user) => (user.role === 'admin' ? trace : { ...trace, 
 export function chatRoutes({ db, clock, audit, harness, config }) {
   const r = Router();
   const limiter = rateLimit({ windowMs: 10 * 60_000, limit: 20, keyGenerator: (req) => req.session.sessionId, validate: false, handler: (req, res, next) => next(errors.rateLimited()) });
-  r.post('/chat', limiter, asyncHandler(async (req, res) => {
+  const ipLimiter = rateLimit({ windowMs: 10 * 60_000, limit: config.chatIpLimit, keyGenerator: (req) => req.ip, validate: false, handler: (req, res, next) => next(errors.rateLimited()) });
+  r.post('/chat', ipLimiter, limiter, asyncHandler(async (req, res) => {
     const { message, model } = parseBody(ChatBody, req.body);
     if (model && !isKnownModel(model)) throw errors.invalid('Unknown model.');
     res.json(publicTurn(await harness.runTurn({ user: req.user, message, model: model ?? getDefaultModel(db, config) })));

@@ -109,6 +109,7 @@ Edit the local `.env` using [.env.example](.env.example) and [src/config.js](src
 | `DEMO_PASSWORD` | Defaults to `careops-demo`; used when seeding accounts. |
 | `DEFAULT_MODEL` | Fallback model before a Model Lab result selects a default. |
 | `DAILY_BUDGET_USD` | App budget based on recorded provider usage; default `3`. |
+| `CHAT_IP_LIMIT` | Assistant turns allowed per IP address per 10 minutes (on top of 20 per session); default `60`. The demo password is public, so this protects the daily budget. |
 | `PORT`, `DB_PATH` | Optional; default `3000` and `./data/careops.db`. |
 
 With the KB running, load the synthetic documents and start CareOps:
@@ -118,7 +119,7 @@ node --env-file=.env scripts/load-kb.js
 node --env-file=.env src/main.js
 ```
 
-Open `http://localhost:3000`. The loader skips documents whose titles already exist. The server creates the database directory and seeds an empty user table automatically. To try the non-AI workflows without a KB or provider, skip the loader and start the server; assistant retrieval/provider failures are handled separately.
+Open `http://localhost:3000`. The loader adds new documents and skips unchanged ones (each stores a content fingerprint). If a loaded document was edited, it stops and asks you to run `scripts/rebuild-kb.sh`, which reloads the KB container from `seed/kb-docs`. The server creates the database directory and seeds an empty user table automatically. To try the non-AI workflows without a KB or provider, skip the loader and start the server; assistant retrieval/provider failures are handled separately.
 
 `npm start` and `npm run load-kb` are equivalent entry points when the environment has already been exported. Those npm scripts do not load `.env` automatically. Local HTTP uses non-secure cookies; `NODE_ENV=production` enables Secure cookies and requires HTTPS for login to work correctly.
 

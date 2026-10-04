@@ -89,3 +89,11 @@ test('a non-numeric audit limit does not break the endpoint', async (t) => {
   const dana = await app.login('dana');
   assert.equal((await dana.call('/api/audit?limit=abc')).status, 200);
 });
+
+test('chat is also limited per IP address, across sessions', async (t) => {
+  const app = await startTestApp({ config: { chatIpLimit: 3 } }); t.after(app.close);
+  const a = await app.login('jordan'); const b = await app.login('sam');
+  const ask = (s) => s.call('/api/chat', { method: 'POST', body: { message: 'Show me all denied claims.' } });
+  const statuses = [await ask(a), await ask(b), await ask(a), await ask(b)].map(r => r.status);
+  assert.deepEqual(statuses, [200, 200, 200, 429]);
+});
