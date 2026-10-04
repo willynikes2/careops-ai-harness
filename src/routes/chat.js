@@ -8,7 +8,9 @@ import { MODELS, isKnownModel } from '../llm/models.js';
 import { getDefaultModel } from '../harness/pipeline.js';
 
 const ChatBody = z.object({ message: z.string().trim().min(1).max(2000), model: z.string().max(100).optional() });
-const publicTurn = ({ _raw, reason, ...turn }) => turn; // raw model text and rejection reason stay server-side (both are in the trace)
+const publicTurn = ({ _raw, reason, ...turn }) => turn; // raw model text and rejection reason are not sent with the turn
+// Withheld model output is visible only to compliance (admin); the turn's owner sees why, not what.
+const forViewer = (trace, user) => (user.role === 'admin' ? trace : { ...trace, steps: trace.steps.map(({ detail, ...s }) => { const { raw, ...rest } = detail ?? {}; return { ...s, detail: rest }; }) });
 
 export function chatRoutes({ db, clock, audit, harness, config }) {
   const r = Router();
@@ -22,7 +24,7 @@ export function chatRoutes({ db, clock, audit, harness, config }) {
   r.get('/traces/:turnId', (req, res, next) => {
     const t = audit.getTrace(req.params.turnId);
     if (!t || (t.user.id !== req.user.id && req.user.role !== 'admin')) return next(errors.notFound('Trace not found.'));
-    res.json(t);
+    res.json(forViewer(t, req.user));
   });
   r.get('/models', (req, res) => res.json({ default: getDefaultModel(db, config), models: MODELS }));
   return r;

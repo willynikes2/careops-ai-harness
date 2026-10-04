@@ -12,6 +12,10 @@ export async function retrieveForUser({ kb, user, query, maxDocs = 3, maxChars =
   }
   return { docs, filteredOut: hits.length - permitted.length };
 }
+// Deterministic tripwire for instruction-like text inside retrieved documents. It never blocks the answer;
+// the content is already fenced as untrusted data. It makes the injection attempt visible and auditable.
+export const INSTRUCTION_LIKE = /ignore (all )?(previous|prior) instructions|system (notice|override)|administrator mode|you are now (in )?(dan|admin|developer)|grant_admin_role/i;
+export const flagInstructionLike = (docs) => docs.filter(d => INSTRUCTION_LIKE.test(d.content)).map(d => ({ id: d.id, title: d.title }));
 export function buildQuery(intent, message, facts, claimIds = []) {
   // A named claim → search by its payer + denial code; otherwise search by what the user asked.
   if (intent === 'billing' && claimIds.length && facts.claims?.length) { const c = facts.claims[0]; return [c.payer, c.denialCode, 'denial authorization'].filter(Boolean).join(' '); }

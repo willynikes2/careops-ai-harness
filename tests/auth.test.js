@@ -60,3 +60,10 @@ test('repeated failed logins are rate limited', async (t) => {
   assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401));
   assert.equal(statuses[10], 429);
 });
+
+test('a wrong password gets a clear message', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const r = await fetch(`${app.base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'jordan', password: 'typo' }) });
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).error.message, 'Username or password is incorrect.');
+});

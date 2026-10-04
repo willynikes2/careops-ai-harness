@@ -2,7 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { asyncHandler, parseBody, requireUser } from '../http/middleware.js';
-import { errors } from '../http/errors.js';
+import { errors, HttpError } from '../http/errors.js';
 import { verifyPassword } from './passwords.js';
 import { createSession, destroySession } from './sessions.js';
 
@@ -17,7 +17,7 @@ export function authRoutes({ db, clock, config, audit }) {
     const u = db.prepare('SELECT * FROM users WHERE username = ?').get(username.toLowerCase());
     if (!u || !verifyPassword(password, u.password_hash)) {
       audit.event({ kind: 'login_failed', security: true, detail: { username: username.slice(0, 64) } });
-      throw errors.unauth();
+      throw new HttpError(401, 'unauthenticated', 'Username or password is incorrect.');
     }
     const s = createSession(db, u.id, clock);
     audit.event({ actor: { id: u.id, role: u.role }, kind: 'login_success' });

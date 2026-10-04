@@ -30,10 +30,10 @@ export function createApp({ db, kb, provider, clock = systemClock, config, logge
   app.use(cookieParser());
   app.use(correlationId);
   const audit = createAudit(db, clock);
-  app.use(healthRoutes({ db, kb, config }));
+  const budget = createBudget(db, clock, config.dailyBudgetUsd);
+  app.use(healthRoutes({ db, kb, config, budget, clock }));
   app.use('/api/auth', authRoutes({ db, clock, config, audit }));
   app.use('/api', requireUser({ db, clock }));
-  const budget = createBudget(db, clock, config.dailyBudgetUsd);
   const prompts = loadPrompts();
   const harness = createHarness({ db, kb, provider, clock, audit, budget, prompts, config });
   app.use('/api', chatRoutes({ db, clock, audit, harness, config }));

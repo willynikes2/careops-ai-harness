@@ -5,7 +5,8 @@ import { can, INTENT_PERMISSION, ROLE_COLLECTIONS } from '../policy/permissions.
 import { classifyIntent } from '../policy/intent.js';
 import { getBalance } from '../domain/pto.js';
 import { getAssignedClaim, listAssignedClaims } from '../domain/claims.js';
-import { retrieveForUser, buildQuery } from '../retrieval/retrieve.js';
+import { retrieveForUser, buildQuery, flagInstructionLike } from '../retrieval/retrieve.js';
+import { CANARY } from './prompts.js';
 import { proposeAction } from '../tools/actions.js';
 import { startTrace } from './trace.js';
 import { buildModelInput } from './context.js';
@@ -97,7 +98,10 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     try {
       const r = await retrieveForUser({ kb, user, query: buildQuery(intent, message, facts, claimIds) });
       docs = r.docs;
-      trace.add('retrieval', 'ok', `${docs.length} document(s) from ${ROLE_COLLECTIONS[user.role].join(', ')}; ${r.filteredOut} result(s) outside this role were dropped before the model saw anything.`, { docs: docs.map(d => ({ id: d.id, title: d.title, collection: d.collection })), filteredOut: r.filteredOut });
+      const flaggedDocs = flagInstructionLike(docs);
+      const flagNote = flaggedDocs.length ? ` Instruction-like text found in ${flaggedDocs.map(d => `"${d.title}"`).join(', ')} — passed to the model as untrusted data, never as instructions; it cannot grant tools or permissions.` : '';
+      trace.add('retrieval', 'ok', `${docs.length} document(s) from ${ROLE_COLLECTIONS[user.role].join(', ')}; ${r.filteredOut} result(s) outside this role were dropped before the model saw anything.${flagNote}`, { docs: docs.map(d => ({ id: d.id, title: d.title, collection: d.collection })), filteredOut: r.filteredOut, flaggedDocs });
+      if (flaggedDocs.length) audit.event({ actor: user, kind: 'injection_detected', security: true, turnId, detail: { docs: flaggedDocs } });
     } catch (err) {
       trace.add('retrieval', 'error', 'Knowledge service unavailable — continuing with database facts only.', { error: String(err.message) });
     }
@@ -127,7 +131,8 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     const meta = { model, costUsd: out.usage.costUsd, latencyMs: out.latencyMs, _raw: out.text };
     const v = validateTurn({ text: out.text, docs, facts, user, intent });
     if (!v.ok) {
-      trace.add('validation', 'error', `Withheld: ${v.reason}.`, { reason: v.reason, raw: out.text.slice(0, 2000) });
+      const raw = out.text.includes(CANARY) ? '[redacted: output contained protected system-prompt text]' : out.text.slice(0, 2000);
+      trace.add('validation', 'error', `Withheld: ${v.reason}.`, { reason: v.reason, raw });
       trace.add('execution', 'skipped', 'Nothing executed.');
       audit.event({ actor: user, kind: 'output_rejected', security: true, turnId, detail: { reason: v.reason, model } });
       return reply({ status: 'invalid_output', answer: "The AI's answer failed a safety check and was withheld.", reason: v.reason, ...meta });
