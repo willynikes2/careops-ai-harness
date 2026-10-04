@@ -11,6 +11,7 @@ import { proposeAction } from '../tools/actions.js';
 import { startTrace } from './trace.js';
 import { buildModelInput } from './context.js';
 import { validateTurn } from './validate.js';
+import { chooseDefault } from '../labs/chooseDefault.js';
 
 const DENIAL_TEXT = {
   billing: "I can't help with claims or patient billing information — your role doesn't have access, so no billing data was retrieved. If you need billing help, contact the billing team.",
@@ -48,9 +49,11 @@ const describeFacts = (f) => [
   f.ptoDateCandidates && `date resolved deterministically to ${f.ptoDateCandidates[0]}`,
 ].filter(Boolean).join('; ') || 'No personal records needed.';
 
+// Recomputed from the stored Model Lab results each time, so the selection rule (not a stale stored field) decides.
 export function getDefaultModel(db, config) {
   const row = db.prepare("SELECT results_json FROM lab_results WHERE lab = 'models'").get();
-  return (row && JSON.parse(row.results_json).defaultModel) || config.defaultModel;
+  const models = row ? JSON.parse(row.results_json).models : null;
+  return (models?.length && chooseDefault(models)) || config.defaultModel;
 }
 
 export function createHarness({ db, kb, provider, clock, audit, budget, prompts, config }) {

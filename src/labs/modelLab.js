@@ -6,6 +6,8 @@ import { openDb } from '../db/index.js';
 import { seedDb } from '../db/seed.js';
 import { createAudit } from '../audit/audit.js';
 import { EVAL_ITEMS, EVAL_NOW } from './evalSet.js';
+import { chooseDefault } from './chooseDefault.js';
+export { chooseDefault };
 
 // Five binary criteria per answer; an item passes only if all five pass.
 export function scoreTurn(item, turn) {
@@ -28,12 +30,6 @@ export function summarizeModel(m, rows) {
   const avgCostUsd = n ? scored.reduce((a, r) => a + r.costUsd, 0) / n : 0;
   return { id: m.id, label: m.label, passed, total: n, errors: mine.length - n, passRate: n ? passed / n : 0, criteria,
     avgCostUsd, costPer1k: avgCostUsd * 1000, avgLatencyMs: n ? Math.round(scored.reduce((a, r) => a + r.latencyMs, 0) / n) : 0 };
-}
-// Selection counts provider errors as misses (reported pass rates exclude them): the chat default must answer reliably.
-const reliability = (m) => (m.total === undefined ? m.passRate : m.passed / Math.max(1, m.total + (m.errors ?? 0)));
-export function chooseDefault(models) {
-  const ok = models.filter(m => reliability(m) >= 0.9).sort((a, b) => a.avgCostUsd - b.avgCostUsd);
-  return (ok[0] ?? [...models].sort((a, b) => reliability(b) - reliability(a))[0]).id;
 }
 const userById = (db, id) => { const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id); return { id: u.id, username: u.username, displayName: u.display_name, role: u.role, managerId: u.manager_id }; };
 

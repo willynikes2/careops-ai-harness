@@ -72,3 +72,16 @@ test('choosing the default counts provider errors as misses (a demo needs answer
   ];
   assert.equal(chooseDefault(models), 'steady');
 });
+
+test('the chat default is recomputed from stored results with the current rule', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const stored = { at: 'x', items: 12, reps: 3, defaultModel: 'openai/gpt-oss-120b', rows: [], models: [
+    { id: 'openai/gpt-oss-120b', passed: 31, total: 34, errors: 2, passRate: 31 / 34, avgCostUsd: 0.000134 },
+    { id: 'qwen/qwen3-235b-a22b-2507', passed: 36, total: 36, errors: 0, passRate: 1, avgCostUsd: 0.000252 },
+  ] };
+  app.db.prepare("INSERT INTO lab_results (lab, at, results_json) VALUES ('models', 'x', ?)").run(JSON.stringify(stored));
+  const { call } = await app.login('jordan');
+  assert.equal((await call('/api/models')).body.default, 'qwen/qwen3-235b-a22b-2507');
+  const dana = await app.login('dana');
+  assert.equal((await dana.call('/api/labs/models')).body.defaultModel, 'qwen/qwen3-235b-a22b-2507');
+});
