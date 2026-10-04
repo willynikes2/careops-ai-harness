@@ -24,6 +24,7 @@ export function pto(root, ctx) {
       requests.replaceChildren(empty('Requests could not be refreshed. Try Refresh again.'));
       return;
     }
+    if (feedback.classList.contains('error')) message(feedback, '');
     balances.replaceChildren(stat('Available hours', hours(result.balance.hoursAvailable)), stat('Pending hours', hours(result.balance.hoursPending), 'Awaiting manager approval'));
     if (!result.requests.length) { requests.replaceChildren(empty('No time off requested yet. Your first request will appear here.')); return; }
     const grid = table(['Date', 'Hours', 'Status', 'Submitted'], 'Your time-off requests');

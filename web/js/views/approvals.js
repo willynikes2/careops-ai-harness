@@ -44,6 +44,7 @@ export function approvals(root, ctx) {
     if (!ctx.active() || current !== ticket) return;
     refresh.disabled = false;
     if (result.error) { message(feedback, result.error.message); content.replaceChildren(empty('Requests could not be loaded.')); return; }
+    if (feedback.classList.contains('error')) message(feedback, '');
     if (!result.requests.length) { content.replaceChildren(empty('Your direct reports have no requests to review.')); return; }
     const grid = table(['Employee', 'Date', 'Hours', 'Status', 'Decision'], 'Time-off requests from your direct reports');
     grid.body.append(...result.requests.map(row));

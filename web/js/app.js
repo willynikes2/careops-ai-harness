@@ -43,7 +43,6 @@ async function workspace() {
   function route() {
     // Hashes only select presentation. Every permission is enforced by the API.
     if (location.hash === '#main') { main.focus(); return; }
-    if (location.hash === '#repo') return;
     const id = location.hash.slice(1) || 'assistant';
     const selected = allowed.find(item => item.id === id) ?? allowed[0];
     if (id !== selected.id) history.replaceState(null, '', `#${selected.id}`);

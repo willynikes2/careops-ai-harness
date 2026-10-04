@@ -37,6 +37,7 @@ export function audit(root, ctx) {
     if (!ctx.active() || current !== ticket) return;
     refresh.disabled = false;
     if (result.error) { message(feedback, result.error.message); if (!content.querySelector('table')) content.replaceChildren(empty('Audit records could not be loaded.')); return; }
+    if (feedback.classList.contains('error')) message(feedback, '');
     if (!result.events.length) { content.replaceChildren(empty(filter.checked ? 'No security events match this filter.' : 'No audit events recorded yet.')); return; }
     const grid = table(['When', 'Who', 'Event', 'Details', 'Decision record'], 'Audit events, newest first');
     const events = [...result.events].sort((a, b) => b.at.localeCompare(a.at) || b.id - a.id);

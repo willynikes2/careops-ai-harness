@@ -76,17 +76,19 @@ export function modelLab(root, ctx) {
     render: result => {
       const content = el('div', {}, el('section', { class: 'card' }, el('h2', {}, 'Choose on measured quality and cost'), el('p', {}, 'Each answer is checked for a readable response, valid sources, real record identifiers, the expected action, and the required fact. An answer passes only when all checks pass. The target is at least 90%; the cheapest model meeting that bar is the preferred default.')));
       const criteria = { json_valid: 'Readable response', citations_valid: 'Valid sources', no_fabricated_ids: 'Real records', expected_action: 'Expected action', key_fact: 'Required fact' };
-      const grid = table(['Model', 'Pass rate', ...Object.values(criteria), 'Avg cost / answer', 'Cost per 1,000', 'Avg latency'], 'Model quality, cost, and latency');
+      const grid = table(['Model', 'Pass rate', 'Errors', ...Object.values(criteria), 'Avg cost / answer', 'Cost per 1,000', 'Avg latency'], 'Model quality, cost, and latency');
       for (const model of result.models) {
         const chosen = model.id === result.defaultModel;
+        const scored = model.total > 0;
         const percent = Math.round(model.passRate * 100);
         const name = el('div', {}, el('strong', {}, model.label));
-        if (chosen) name.append(el('p', { class: 'chosen-note' }, model.passRate >= 0.9 ? 'Chosen: cheapest model meeting the 90% bar' : 'Chosen: best available result; below the 90% bar'));
-        const meter = el('div', { class: 'pass-rate' }, el('strong', {}, `${percent}%`), el('progress', { max: '1', value: String(model.passRate), 'aria-label': `${model.label} pass rate` }), el('span', { class: 'small muted' }, `${model.passed}/${model.total} answers`));
-        grid.body.append(el('tr', { class: chosen ? 'chosen-row' : '' }, cell(name), cell(meter), ...Object.keys(criteria).map(key => cell(`${model.criteria[key]}/${model.total}`)), cell(cost(model.avgCostUsd)), cell(cost(model.costPer1k)), cell(`${(model.avgLatencyMs / 1000).toFixed(2)} s`)));
+        if (chosen) name.append(el('p', { class: 'chosen-note' }, !scored ? 'Default fallback: no scored answers' : model.passRate >= 0.9 ? 'Chosen: cheapest model meeting the 90% bar' : 'Chosen: best available result; below the 90% bar'));
+        const meter = el('div', { class: 'pass-rate' }, el('strong', {}, scored ? `${percent}%` : 'Not scored'), scored ? el('progress', { max: '1', value: String(model.passRate), 'aria-label': `${model.label} pass rate` }) : null, el('span', { class: 'small muted' }, `${model.passed}/${model.total} scored answers`));
+        grid.body.append(el('tr', { class: chosen ? 'chosen-row' : '' }, cell(name), cell(meter), cell(String(model.errors ?? 0)), ...Object.keys(criteria).map(key => cell(scored ? `${model.criteria[key]}/${model.total}` : '—')), cell(scored ? cost(model.avgCostUsd) : '—'), cell(scored ? cost(model.costPer1k) : '—'), cell(scored ? `${(model.avgLatencyMs / 1000).toFixed(2)} s` : '—')));
       }
       content.append(el('section', { class: 'card model-table' }, result.models.length ? grid.node : empty('This run contains no model results.')),
-        el('p', { class: 'small muted' }, `${result.items} questions × ${result.reps} repetitions = ${result.items * result.reps} answers per model · ${timestamp(result.at)}.`),
+        el('p', { class: 'small muted' }, 'Errors mean an answer could not be obtained, for example during a provider outage or when the budget runs out. They are excluded from pass rates, costs, and latency averages. No scored answers means quality and cost are not measured.'),
+        el('p', { class: 'small muted' }, `${result.items} questions × ${result.reps} repetitions = ${result.items * result.reps} attempts per model · ${timestamp(result.at)}.`),
         el('p', { class: 'small muted' }, 'Illustrative for this task set — not a general model ranking. Costs and latency are measured for this run.'));
       return content;
     },

@@ -42,5 +42,5 @@ export function howItWorks(root) {
       ['Any model can plug in', 'A shared model connection keeps the same rules and workflow in place. Model Lab compares quality and cost on the same questions.'],
     ].map(([title, text]) => el('section', { class: 'card callout' }, el('h2', {}, title), el('p', { class: 'muted' }, text)))),
     el('section', { class: 'card' }, el('h2', {}, 'The eight steps'), el('ol', { class: 'explanation-steps' }, steps.map(([name, description]) => el('li', {}, el('h3', {}, name), el('p', { class: 'muted' }, description))))),
-    el('section', { class: 'card', id: 'repo' }, el('h2', {}, 'Read the project'), el('p', {}, 'The repository contains the design, API contract, security checks, and demonstration guide.'), el('a', { href: '#repo', class: 'text-link' }, 'GitHub repository (link coming soon)')));
+    el('section', { class: 'card' }, el('h2', {}, 'About this demonstration'), el('p', {}, 'CareOps uses fictional people, claims, and company policies to demonstrate permissions, grounded answers, and accountable actions. It is not a production healthcare system.'), el('p', { class: 'muted' }, 'A public source repository has not been published.')));
 }
