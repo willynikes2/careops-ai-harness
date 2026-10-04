@@ -230,3 +230,12 @@ test('the PTO balance in the facts is labelled as the asker\'s own', async (t) =
   await chat(call, 'How much PTO does Jordan have?');
   assert.match(provider.calls[0].user, /"yourPtoBalance":\{"owner":"Priya Shah"/);
 });
+
+test('the output contract tells the model to propose actions instead of asking permission', async (t) => {
+  const provider = new FakeProvider([{ answer: 'ok' }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('marcus');
+  await chat(call, 'Why was CLM-1004 denied?');
+  assert.match(provider.calls[0].system, /Do not ask whether to create an action/);
+  assert.match(provider.calls[0].system, /needs_clarification only when required information is missing/);
+});
