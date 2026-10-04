@@ -45,7 +45,7 @@ export function createTraceDrawer() {
       ...row('Validation', d.validation, /FAILED|REJECTED/.test(d.validation ?? '') ? 'bad' : null),
       ...row('Execution', d.execution, d.execution === 'SUCCESS' ? 'good' : d.execution === 'REJECTED' ? 'bad' : null),
       ...(d.stateChange ? row('State change', d.stateChange) : []),
-      ...row('Audit', [d.auditEventId, d.securityEventId && `${d.securityEventId} (security)`, d.executionAuditId && `${d.executionAuditId} (execution)`].filter(Boolean).join(' · ') || '—'))) : null;
+      ...row('Audit', [d.auditEventId, ...(d.securityEventIds?.length ? d.securityEventIds : d.securityEventId ? [d.securityEventId] : []).map(id => `${id} (security)`), d.executionAuditId && `${d.executionAuditId} (execution)`].filter(Boolean).join(' · ') || '—'))) : null;
     const timeline = el('ol', { class: 'timeline' });
     for (const name of steps) {
       const step = result.steps.find(item => item.name === name);

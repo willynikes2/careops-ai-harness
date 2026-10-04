@@ -89,6 +89,7 @@ export function createAssistant({ user, openTrace }) {
     const card = el('article', { class: `chat-message assistant-message ${statusClass}` }, el('p', { class: 'message-label' }, turn.status === 'denied' ? '🔒 CareOps · Access restricted' : '✦ CareOps'));
     const text = turn.status === 'ai_unavailable' ? unavailable : turn.status === 'invalid_output' ? withheld : turn.answer;
     card.append(el('p', { class: 'preserve-lines' }, text));
+    if (turn.safety?.length) card.append(el('ul', { class: 'safety-notes', 'aria-label': 'Harness checks on this answer' }, turn.safety.map(note => el('li', {}, `🛡 ${note}`))));
     if (turn.status === 'clarify' && turn.clarification) {
       const options = el('div', { class: 'button-row' });
       for (const option of turn.clarification.options) {

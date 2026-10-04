@@ -10,12 +10,13 @@ export function fakeKb(docs = KB_DOCS, { down = false } = {}) {
   const words = (s) => s.toLowerCase().split(/[^a-z0-9§-]+/).filter(w => w.length > 2);
   return {
     calls,
-    async search(q, { limit = 8 } = {}) {
+    async search(q, { limit = 8, collection } = {}) {
       calls.push(q); if (down) throw new Error('kb down');
       const qs = new Set(words(q));
-      return docs.map(d => ({ d, score: words(`${d.title} ${d.content}`).filter(w => qs.has(w)).length }))
+      return docs.filter(d => !collection || d.collection === collection)
+        .map(d => ({ d, score: words(`${d.title} ${d.content}`).filter(w => qs.has(w)).length }))
         .filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit)
-        .map(({ d }) => ({ id: d.id, title: d.title, collection: d.collection }));
+        .map(({ d, score }) => ({ id: d.id, title: d.title, collection: d.collection, rank: -score }));
     },
     async get(id) { if (down) throw new Error('kb down'); const d = docs.find(x => x.id === String(id)); if (!d) throw new Error('kb_http_404'); return { ...d }; },
     async health() { if (down) throw new Error('kb down'); return true; },

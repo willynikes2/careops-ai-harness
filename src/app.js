@@ -26,9 +26,9 @@ export function createApp({ db, kb, provider, clock = systemClock, config, logge
   app.use(helmet({ contentSecurityPolicy: { directives: {
     defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", 'data:'],
     connectSrc: ["'self'"], frameAncestors: ["'none'"], objectSrc: ["'none'"], baseUri: ["'self'"], formAction: ["'self'"] } } }));
+  app.use(correlationId); // first, so even body-parser errors carry an id
   app.use(express.json({ limit: '32kb' }));
   app.use(cookieParser());
-  app.use(correlationId);
   const audit = createAudit(db, clock);
   const budget = createBudget(db, clock, config.dailyBudgetUsd);
   app.use(healthRoutes({ db, kb, config, budget, clock }));

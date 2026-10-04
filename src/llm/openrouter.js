@@ -16,7 +16,7 @@ export class OpenRouterProvider {
           method: 'POST', signal: AbortSignal.timeout(remaining),
           headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json', 'X-Title': 'CareOps Harness Demo' },
           body: JSON.stringify({ model, temperature, messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-            response_format: { type: 'json_object' }, usage: { include: true }, max_tokens: 800 }),
+            response_format: { type: 'json_object' }, usage: { include: true }, max_tokens: 800, provider: { sort: 'latency' } }),
         });
       } catch (err) { if (attempt === 0 && err.name !== 'TimeoutError') continue; throw new ProviderError(`provider_unreachable: ${err.name}`); }
       if ((res.status === 429 || res.status >= 500) && attempt === 0) continue;

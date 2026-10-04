@@ -8,9 +8,12 @@ export function validateTurn({ text, docs, facts, user, intent }) {
   if (!parsed.ok) return { ok: false, reason: parsed.reason };
   const data = parsed.data;
   if (String(text).includes(CANARY)) return { ok: false, reason: 'output contained protected system-prompt text' };
-  const docIds = new Set(docs.map(d => d.id));
-  const badCites = data.citations.filter(c => !docIds.has(c));
+  // Models sometimes cite "PTO Policy §3" instead of the id; that names a provided document, so resolve it.
+  // A citation that matches no provided document still fails closed.
+  const resolve = (c) => docs.find(d => d.id === c) ?? docs.find(d => c.toLowerCase().replace(/^["'“]+/, '').startsWith(d.title.toLowerCase()));
+  const badCites = data.citations.filter(c => !resolve(c));
   if (badCites.length) return { ok: false, reason: `cited documents that were not provided (${badCites.join(', ')})` };
+  data.citations = [...new Set(data.citations.map(c => resolve(c).id))];
   const known = new Set((facts.claims ?? []).map(c => c.id));
   const shown = `${data.answer} ${data.needs_clarification ?? ''}`; // everything the user will read
   const mentioned = [...new Set((shown.match(/\bCLM-\d{4}\b/gi) ?? []).map(s => s.toUpperCase()))];

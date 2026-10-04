@@ -29,10 +29,14 @@ ChatTurn    = { turnId: string,
                 citations: Citation[],
                 clarification: null | { question: string, options: { label: string, message: string }[] },
                 proposedAction: null | { id: string, tool: string, summary: string },
+                safety: string[] /* plain-language notes when the harness stepped in (injection flagged, tool blocked) */,
                 model: string|null, costUsd: number, latencyMs: number }
 TraceStep   = { name: "identity"|"policy"|"state"|"retrieval"|"reasoning"|"validation"|"execution"|"audit",
                 status: "ok"|"denied"|"error"|"skipped", summary: string, detail: object, ms: number }
-Trace       = { turnId: string, at: string, user: User, steps: TraceStep[] }
+Trace       = { turnId: string, at: string, user: User, steps: TraceStep[], decision: Decision | null }
+Decision    = { actor, role, intent, requiredPermission, authorization: "ALLOWED"|"DENIED", restrictedRetrieval, modelReceivedRestrictedData: "NO",
+                sources: string[], model: string|null, requestedAction: string|null, validation, execution: "NONE"|"AWAITING CONFIRMATION"|"SUCCESS"|"REJECTED",
+                stateChange: string|null, auditEventId, securityEventId, securityEventIds: string[], executionAuditId }   // event ids look like EVT-000123
 AuditEvent  = { id: number, at: string, actorName: string|null, actorRole: string|null, kind: string,
                 security: boolean, turnId: string|null, detail: object }
 ```

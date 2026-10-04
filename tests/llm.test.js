@@ -52,3 +52,10 @@ test('one shared deadline covers the retry (an outage reports in ~timeout, not 2
   await assert.rejects(p.complete({ model: 'm', system: 's', user: 'u' })).finally(() => clearInterval(keepAlive));
   assert.ok(performance.now() - started < 550, `took ${Math.round(performance.now() - started)}ms`);
 });
+
+test('openrouter requests prefer the lowest-latency provider for the chosen model', async () => {
+  let sent;
+  const p = new OpenRouterProvider({ apiKey: 'k', fetchImpl: async (url, init) => { sent = JSON.parse(init.body); return new Response(JSON.stringify(okBody), { status: 200 }); } });
+  await p.complete({ model: 'm', system: 's', user: 'u' });
+  assert.deepEqual(sent.provider, { sort: 'latency' });
+});

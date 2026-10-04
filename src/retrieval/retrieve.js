@@ -2,8 +2,11 @@ import { ROLE_COLLECTIONS } from '../policy/permissions.js';
 
 // Authorization is applied to retrieval results BEFORE any content reaches the model.
 export async function retrieveForUser({ kb, user, query, maxDocs = 3, maxChars = 3500 }) {
-  const allowed = new Set(Object.hasOwn(ROLE_COLLECTIONS, user.role) ? ROLE_COLLECTIONS[user.role] : []);
-  const hits = await kb.search(query, { limit: 10 });
+  const collections = Object.hasOwn(ROLE_COLLECTIONS, user.role) ? ROLE_COLLECTIONS[user.role] : [];
+  const allowed = new Set(collections);
+  // Only the role's collections are queried, so out-of-role documents are never even ranked.
+  const hits = (await Promise.all(collections.map(collection => kb.search(query, { limit: 10, collection })))).flat()
+    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
   const permitted = hits.filter(h => allowed.has(h.collection));
   const fetched = await Promise.all(permitted.slice(0, maxDocs).map(h => kb.get(h.id)));
   const docs = fetched.filter(d => allowed.has(d.collection)).map(d => ({ ...d, content: d.content.slice(0, maxChars) }));

@@ -92,3 +92,10 @@ test('persona shortcut cannot pick a role or a non-demo account', async (t) => {
   assert.equal((await demo(app.base, { persona: 'sam' })).status, 400);
   assert.equal((await demo(app.base, { persona: 'admin' })).status, 400);
 });
+
+test('parser errors carry a correlation id like every other error', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const r = await fetch(`${app.base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"username": ' });
+  const body = await r.json();
+  assert.ok(body.error.correlationId); assert.equal(r.headers.get('x-correlation-id'), body.error.correlationId);
+});

@@ -70,11 +70,13 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     const trace = startTrace(turnId, user, clock);
     // lab turns are tagged so they are never mistaken for a real person's activity in the audit log
     const ev = (e) => audit.event(purpose === 'chat' ? e : { ...e, detail: { ...(e.detail ?? {}), purpose } });
-    const reply = (f) => finish(trace, { turnId, status: 'answered', answer: '', citations: [], clarification: null, proposedAction: null, model: null, costUsd: 0, latencyMs: 0, ...f }, ev);
+    const reply = (f) => finish(trace, { turnId, status: 'answered', answer: '', citations: [], clarification: null, proposedAction: null, model: null, costUsd: 0, latencyMs: 0, safety, ...f }, ev);
     // Plain-English decision record shown at the top of "Why did this happen?"
     const decision = trace.decision = { actor: user.displayName, role: user.role, intent: null, requiredPermission: null, authorization: null,
       restrictedRetrieval: 'NOT EXECUTED', modelReceivedRestrictedData: 'NO', sources: [], model: null, requestedAction: null,
-      validation: 'NOT RUN', execution: 'NONE', stateChange: null, auditEventId: null, securityEventId: null, executionAuditId: null };
+      validation: 'NOT RUN', execution: 'NONE', stateChange: null, auditEventId: null, securityEventId: null, securityEventIds: [], executionAuditId: null };
+    const safety = []; // plain-language notes shown on the answer when the harness stepped in
+    const sec = (e) => { const id = ev({ ...e, security: true }); decision.securityEventIds.push(id); decision.securityEventId ??= id; return id; };
     trace.add('identity', 'ok', `Signed in as ${user.displayName} (${user.role}). Identity comes from the server session, not the browser.`, { userId: user.id, role: user.role });
 
     // 1. POLICY — before any data is touched
@@ -84,7 +86,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     if (!can(user, permission)) {
       trace.add('policy', 'denied', `Classified as "${intent}", which requires "${permission}". The ${user.role} role does not have it, so nothing was retrieved.`, { intent, permission });
       SKIP(trace, ['state', 'retrieval', 'reasoning', 'validation', 'execution'], 'Stopped by policy.');
-      decision.securityEventId = ev({ actor: user, kind: 'access_denied', security: true, turnId, detail: { intent, permission, message: message.slice(0, 200) } });
+      sec({ actor: user, kind: 'access_denied', turnId, detail: { intent, permission, message: message.slice(0, 200) } });
       return reply({ status: 'denied', answer: DENIAL_TEXT[intent] ?? DENIAL_TEXT.default });
     }
     trace.add('policy', 'ok', `Allowed: "${intent}" requires "${permission}".`, { intent, permission });
@@ -132,8 +134,11 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       decision.sources = docs.map(d => d.title);
       const flaggedDocs = flagInstructionLike(docs);
       const flagNote = flaggedDocs.length ? ` Instruction-like text found in ${flaggedDocs.map(d => `"${d.title}"`).join(', ')} — passed to the model as untrusted data, never as instructions; it cannot grant tools or permissions.` : '';
-      trace.add('retrieval', 'ok', `${docs.length} document(s) from ${ROLE_COLLECTIONS[user.role].join(', ')}; ${r.filteredOut} result(s) outside this role were dropped before the model saw anything.${flagNote}`, { docs: docs.map(d => ({ id: d.id, title: d.title, collection: d.collection })), filteredOut: r.filteredOut, flaggedDocs });
-      if (flaggedDocs.length) ev({ actor: user, kind: 'injection_detected', security: true, turnId, detail: { docs: flaggedDocs } });
+      trace.add('retrieval', 'ok', `${docs.length} document(s) from ${ROLE_COLLECTIONS[user.role].join(', ')}; other collections were never queried.${flagNote}`, { docs: docs.map(d => ({ id: d.id, title: d.title, collection: d.collection })), filteredOut: r.filteredOut, flaggedDocs });
+      if (flaggedDocs.length) {
+        sec({ actor: user, kind: 'injection_detected', turnId, detail: { docs: flaggedDocs } });
+        safety.push(`Instruction-like text in ${flaggedDocs.map(d => `"${d.title}"`).join(', ')} was treated as data, not instructions.`);
+      }
     } catch (err) {
       trace.add('retrieval', 'error', 'Knowledge service unavailable — continuing with database facts only.', { error: String(err.message) });
     }
@@ -167,14 +172,17 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       const raw = out.text.includes(CANARY) ? '[redacted: output contained protected system-prompt text]' : out.text.slice(0, 2000);
       trace.add('validation', 'error', `Withheld: ${v.reason}.`, { reason: v.reason, raw });
       trace.add('execution', 'skipped', 'Nothing executed.');
-      ev({ actor: user, kind: 'output_rejected', security: true, turnId, detail: { reason: v.reason, model } });
+      sec({ actor: user, kind: 'output_rejected', turnId, detail: { reason: v.reason, model } });
       decision.validation = `FAILED — answer withheld: ${v.reason}`;
       return reply({ status: 'invalid_output', answer: "The AI's answer failed a safety check and was withheld.", reason: v.reason, ...meta });
     }
     decision.requestedAction = v.data.proposed_action?.tool ?? null;
     decision.sources = v.citations.length ? v.citations.map(c => c.title) : decision.sources;
     decision.validation = v.actionRejection ? `PASSED with tool request REJECTED: ${v.actionRejection}` : 'PASSED';
-    if (v.actionRejection) ev({ actor: user, kind: 'tool_rejected', security: true, turnId, detail: { proposal: v.data.proposed_action, reason: v.actionRejection } });
+    if (v.actionRejection) {
+      sec({ actor: user, kind: 'tool_rejected', turnId, detail: { proposal: v.data.proposed_action, reason: v.actionRejection } });
+      safety.push(`The model asked for "${v.data.proposed_action.tool}", which is not an allowed action here — it was blocked and nothing changed.`);
+    }
     trace.add('validation', v.actionRejection ? 'denied' : 'ok', v.summary, { actionRejection: v.actionRejection });
 
     // 6. EXECUTION — deterministic, only after the user confirms

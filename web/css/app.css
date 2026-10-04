@@ -279,3 +279,7 @@ progress::-moz-progress-bar { border-radius: 8px; background: var(--accent); }
 .persona-row.is-busy { opacity: 0.7; }
 .plain-list { margin: 0; padding-left: 1.1rem; }
 .plain-list li { margin: 4px 0; }
+
+/* Harness notes on an answer (injection flagged, tool blocked) */
+.safety-notes { list-style: none; margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid #0b7a5b; background: #eef7f4; border-radius: 6px; font-size: 0.9rem; }
+.safety-notes li { margin: 2px 0; }
