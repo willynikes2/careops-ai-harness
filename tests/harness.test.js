@@ -236,6 +236,7 @@ test('the output contract tells the model to propose actions instead of asking p
   const app = await startTestApp({ provider }); t.after(app.close);
   const { call } = await app.login('marcus');
   await chat(call, 'Why was CLM-1004 denied?');
-  assert.match(provider.calls[0].system, /Do not ask whether to create an action/);
+  assert.match(provider.calls[0].system, /do not ask whether to create it/);
+  assert.match(provider.calls[0].system, /purely informational questions .* propose no action/);
   assert.match(provider.calls[0].system, /needs_clarification only when required information is missing/);
 });
