@@ -47,9 +47,9 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [context.js](src/harness/context.js) | 25 | `OUTPUT_CONTRACT`, `buildModelInput` | — |
-| [grounding.js](src/harness/grounding.js) | 49 | `canonicalText`, `unknownClaimIds`, `ungroundedQuantities` | Deterministic checks on what the user will read. Citations prove a document was supplied; these prove |
+| [grounding.js](src/harness/grounding.js) | 69 | `canonicalText`, `unknownClaimIds`, `quantities`, `ungroundedQuantities` | Deterministic checks on what the user will read. Citations prove a document was supplied; these check |
 | [leaks.js](src/harness/leaks.js) | 3 | `INTERNAL_FORMAT` | Internal response-format details that can only come from the system prompt / output contract. |
-| [pipeline.js](src/harness/pipeline.js) | 214 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
+| [pipeline.js](src/harness/pipeline.js) | 224 | `gatherFacts`, `recordsFor`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
 | [prompts.js](src/harness/prompts.js) | 5 | `CANARY`, `loadPrompts` | A string that never appears in a legitimate answer; seeing it in output means the system prompt leaked. |
 | [trace.js](src/harness/trace.js) | 9 | `startTrace` | — |
 | [validate.js](src/harness/validate.js) | 32 | `validateTurn` | The model's output is a proposal. The app checks what it can check deterministically: the contract, that cited |
@@ -118,5 +118,6 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [clock.js](src/util/clock.js) | 4 | `systemClock`, `fixedClock`, `nyDate` | — |
-| [dates.js](src/util/dates.js) | 34 | `addDays`, `dow`, `isWeekend`, `addBusinessDays`, `businessDaysUntil`, `formatDate`, `requestedHours`, `resolvePtoDate` | Hours the user stated ("for 4 hours", "half day"), or null — parsed in code so a clarification cannot drop them. |
+| [dates.js](src/util/dates.js) | 38 | `addDays`, `dow`, `isWeekend`, `addBusinessDays`, `businessDaysUntil`, `formatDate`, `requestedHours`, `resolvePtoDate` | Hours the user stated ("for 4 hours", "four hours", "half day"), or null — parsed in code so a clarification cannot drop them. |
 | [ids.js](src/util/ids.js) | 2 | `newId` | — |
+| [numbers.js](src/util/numbers.js) | 14 | `NUMBER_WORDS`, `wordsToNumber` | "nine thousand nine hundred ninety-nine" → 9999, "two and a half" → 2.5. Returns null if not a number phrase. |
