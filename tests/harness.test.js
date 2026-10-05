@@ -371,3 +371,23 @@ test('an answer that recites the internal response format is withheld like a can
   assert.match(d.validation, /internal instructions/);
   assert.equal(d.securityEventIds.length, 1);
 });
+
+test('PTO questions include the asker\'s own requests so status questions can be answered', async (t) => {
+  const provider = new FakeProvider([{ answer: 'ok' }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  await call('/api/pto/requests', { method: 'POST', body: { date: '2026-10-09', idempotencyKey: 'k1' } });
+  await chat(call, 'Was my PTO request denied?');
+  assert.match(provider.calls[0].user, /"yourPtoRequests":\[\{"date":"2026-10-09","hours":8,"status":"PENDING"/);
+  assert.ok(!/pto_[0-9a-f]{16}/.test(provider.calls[0].user)); // record ids are not needed by the model
+});
+
+test('the output contract forbids unsupported procedures and sends people only to contacts the documents name', async (t) => {
+  const provider = new FakeProvider([{ answer: 'ok' }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  await chat(call, 'How do I file a claim for my dental cleaning?');
+  assert.match(provider.calls[0].system, /Only state procedures, steps or advice that appear in the documents/);
+  assert.match(provider.calls[0].system, /the people team/);
+  assert.match(provider.calls[0].system, /only that person or their manager can see them/);
+});

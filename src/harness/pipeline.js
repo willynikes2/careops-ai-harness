@@ -3,7 +3,7 @@ import { nyDate } from '../util/clock.js';
 import { formatDate, resolvePtoDate } from '../util/dates.js';
 import { can, INTENT_PERMISSION, ROLE_COLLECTIONS } from '../policy/permissions.js';
 import { classifyIntent } from '../policy/intent.js';
-import { getBalance, ptoDateProblem } from '../domain/pto.js';
+import { getBalance, listMyPto, ptoDateProblem } from '../domain/pto.js';
 import { getAssignedClaim, listAssignedClaims } from '../domain/claims.js';
 import { retrieveForUser, buildQuery, flagInstructionLike } from '../retrieval/retrieve.js';
 import { CANARY } from './prompts.js';
@@ -30,6 +30,8 @@ export function gatherFacts(db, user, intent, claimIds, dateRes, message = '') {
     const b = getBalance(db, user.id);
     // labelled as the asker's own, so a manager asking about a report can't have it misattributed
     if (b) facts.yourPtoBalance = { owner: user.displayName, ...b, hoursRequestable: b.hoursAvailable - b.hoursPending };
+    // the asker's own recent requests (no record ids), so "was my request approved?" can be answered
+    facts.yourPtoRequests = listMyPto(db, user).requests.slice(0, 5).map(r => ({ date: r.date, hours: r.hours, status: r.status }));
   }
   if (intent === 'billing') {
     if (claimIds.length) facts.claims = claimIds.map(id => getAssignedClaim(db, user, id)).filter(Boolean);

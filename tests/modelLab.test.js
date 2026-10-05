@@ -5,7 +5,16 @@ import { scoreTurn, chooseDefault } from '../src/labs/modelLab.js';
 import { startTestApp } from './helpers.js';
 import { FakeProvider } from '../src/llm/fake.js';
 
-test('12 eval items, all synthetic-world questions', () => assert.equal(EVAL_ITEMS.length, 12));
+test('13 eval items, including the dental-filing grounding check', () => {
+  assert.equal(EVAL_ITEMS.length, 13);
+  assert.ok(EVAL_ITEMS.find(i => i.id === 'dental-filing').expect.mustNotSay.length > 0);
+});
+test('an answer that adds an unsupported procedure fails key_fact (mustNotSay)', () => {
+  const item = { id: 'd', expect: { tool: null, keyFacts: [], mustCite: false, mustNotSay: ['submit the claim', 'directly to the insurer'] } };
+  const turn = (answer) => ({ status: 'answered', answer, citations: [], proposedAction: null, _raw: JSON.stringify({ answer }) });
+  assert.ok(scoreTurn(item, turn('Your dental office will submit the claim directly to the insurer.')).failed.includes('key_fact'));
+  assert.equal(scoreTurn(item, turn('The Benefits Guide does not describe how to file a claim; ask the people team.')).pass, true);
+});
 const item = { id: 'x', expect: { tool: 'create_billing_followup', keyFacts: [['authorization']], mustCite: true } };
 test('all five binary criteria pass', () => {
   const s = scoreTurn(item, { status: 'answered', answer: 'Authorization was missing.', citations: [{ docId: '3' }], proposedAction: { tool: 'create_billing_followup' }, _raw: '{"answer":"Authorization was missing."}' });
@@ -40,7 +49,7 @@ test('model lab run persists results and sets the chat default; never mutates bu
   const app = await startTestApp({ provider }); t.after(app.close);
   const { call } = await app.login('dana');
   const r = (await call('/api/labs/models/run', { method: 'POST' })).body;
-  assert.equal(r.items, 12); assert.equal(r.models.length, 4); assert.equal(r.rows.length, 12 * 4 * r.reps);
+  assert.equal(r.items, EVAL_ITEMS.length); assert.equal(r.models.length, 4); assert.equal(r.rows.length, EVAL_ITEMS.length * 4 * r.reps);
   assert.equal((await call('/api/models')).body.default, r.defaultModel);
   assert.equal(app.db.prepare('SELECT COUNT(*) n FROM pto_requests').get().n, 1); // only the seeded one
   assert.equal(app.db.prepare('SELECT COUNT(*) n FROM billing_tasks').get().n, 0);

@@ -17,7 +17,8 @@ export function scoreTurn(item, turn) {
     citations_valid: answered && (!item.expect.mustCite || turn.citations.length > 0),
     no_fabricated_ids: !(turn.status === 'invalid_output' && /records not in the authorized context/.test(turn.reason ?? '')),
     expected_action: (turn.proposedAction?.tool ?? null) === item.expect.tool,
-    key_fact: answered && item.expect.keyFacts.every(group => group.some(k => turn.answer.toLowerCase().includes(k.toLowerCase()))),
+    key_fact: answered && item.expect.keyFacts.every(group => group.some(k => turn.answer.toLowerCase().includes(k.toLowerCase())))
+      && !(item.expect.mustNotSay ?? []).some(p => turn.answer.toLowerCase().includes(p.toLowerCase())), // unsupported claims fail too
   };
   const failed = Object.entries(criteria).filter(([, ok]) => !ok).map(([k]) => k);
   // A provider outage (402/429/timeout) says nothing about the model's answer quality: reported, not scored.

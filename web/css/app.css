@@ -283,3 +283,22 @@ progress::-moz-progress-bar { border-radius: 8px; background: var(--accent); }
 /* Harness notes on an answer (injection flagged, tool blocked) */
 .safety-notes { list-style: none; margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid #0b7a5b; background: #eef7f4; border-radius: 6px; font-size: 0.9rem; }
 .safety-notes li { margin: 2px 0; }
+
+/* Phone discoverability: edge shadows show there is more to scroll (shadows move with the content edges) */
+.table-scroll {
+  background:
+    linear-gradient(to right, #fff 30%, rgba(255,255,255,0)) left center / 32px 100% no-repeat local,
+    linear-gradient(to left, #fff 30%, rgba(255,255,255,0)) right center / 32px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(16,42,52,.16), transparent) left center / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(16,42,52,.16), transparent) right center / 12px 100% no-repeat scroll;
+}
+@media (max-width: 760px) {
+  .table-scroll::before { content: 'Swipe sideways to see every column →'; display: block; position: sticky; left: 0; padding: 0 0 6px; font-size: .74rem; color: var(--muted); }
+  .sidebar nav {
+    background:
+      linear-gradient(to right, #fbfdfd 30%, rgba(251,253,253,0)) left center / 28px 100% no-repeat local,
+      linear-gradient(to left, #fbfdfd 30%, rgba(251,253,253,0)) right center / 28px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgba(16,42,52,.18), transparent) left center / 10px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgba(16,42,52,.18), transparent) right center / 10px 100% no-repeat scroll;
+  }
+}
