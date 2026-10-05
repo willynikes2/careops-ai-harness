@@ -114,3 +114,54 @@ test('claim status change with the same idempotency key replays instead of faili
   assert.equal(a.status, 200); assert.deepEqual(b, a);
   assert.equal(app.db.prepare("SELECT COUNT(*) n FROM audit_events WHERE kind='claim_transition'").get().n, 1);
 });
+
+test('an idempotency key replays only the identical request (same resource and body)', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const { call } = await app.login('marcus');
+  const first = await call('/api/claims/CLM-1004/followups', { method: 'POST', body: { kind: 'PAYER_CALL', note: 'A', idempotencyKey: 'same' } });
+  assert.equal(first.status, 201);
+  const replay = await call('/api/claims/CLM-1004/followups', { method: 'POST', body: { kind: 'PAYER_CALL', note: 'A', idempotencyKey: 'same' } });
+  assert.deepEqual(replay.body, first.body);
+  const otherClaim = await call('/api/claims/CLM-1001/followups', { method: 'POST', body: { kind: 'CODING_REVIEW', note: 'B', idempotencyKey: 'same' } });
+  assert.equal(otherClaim.status, 409, 'changed request with a reused key must not return the earlier success');
+  const otherNote = await call('/api/claims/CLM-1004/followups', { method: 'POST', body: { kind: 'PAYER_CALL', note: 'changed', idempotencyKey: 'same' } });
+  assert.equal(otherNote.status, 409);
+  const missing = await call('/api/claims/CLM-9999/followups', { method: 'POST', body: { kind: 'PAYER_CALL', note: 'A', idempotencyKey: 'same' } });
+  assert.equal(missing.status, 404, 'a missing claim never replays another claim\'s response');
+  assert.equal(app.db.prepare("SELECT COUNT(*) n FROM billing_tasks WHERE note IN ('A','B','changed')").get().n, 1);
+  const jordan = await app.login('jordan');
+  await jordan.call('/api/pto/requests', { method: 'POST', body: { date: '2026-10-09', idempotencyKey: 'p' } });
+  assert.equal((await jordan.call('/api/pto/requests', { method: 'POST', body: { date: '2026-10-16', idempotencyKey: 'p' } })).status, 409);
+  assert.equal((await jordan.call('/api/pto/requests', { method: 'POST', body: { date: '2026-10-09', hours: 4, idempotencyKey: 'p' } })).status, 409);
+});
+
+test('REST denials, CSRF failures and cross-owner probes appear in the security audit without secrets', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const jordan = await app.login('jordan'); const marcus = await app.login('marcus');
+  const before = app.db.prepare('SELECT COUNT(*) n FROM audit_events WHERE security = 1').get().n;
+  assert.equal((await jordan.call('/api/claims')).status, 403);
+  assert.equal((await jordan.call('/api/admin/reset', { method: 'POST', csrf: false })).status, 403);
+  assert.equal((await jordan.call('/api/traces/turn_someone_elses')).status, 404);
+  assert.equal((await jordan.call('/api/actions/act_someone_elses/confirm', { method: 'POST' })).status, 404);
+  assert.equal((await fetch(app.base + '/api/claims')).status, 401);
+  const rows = app.db.prepare("SELECT * FROM audit_events WHERE security = 1 AND kind = 'api_access_denied' ORDER BY id").all();
+  assert.equal(rows.length, 5, 'one sanitized event per denial');
+  const details = rows.map(r => JSON.parse(r.detail_json));
+  assert.deepEqual(details.map(d => d.status), [403, 403, 404, 404, 401]);
+  assert.ok(details.every(d => d.method && d.path && d.correlationId && d.code));
+  assert.equal(rows[0].actor_id, 'u-jordan');
+  assert.ok(!rows.some(r => /careops_sid|csrf.*[0-9a-f]{16}|cookie/i.test(r.detail_json)), 'no cookies or tokens in the audit');
+  assert.ok(app.db.prepare('SELECT COUNT(*) n FROM audit_events WHERE security = 1').get().n > before);
+  // repeated identical probes are throttled so the audit cannot be flooded
+  for (let i = 0; i < 5; i++) await jordan.call('/api/claims');
+  assert.equal(app.db.prepare("SELECT COUNT(*) n FROM audit_events WHERE kind = 'api_access_denied'").get().n, 5);
+  assert.equal((await marcus.call('/api/claims')).status, 200);
+});
+
+test('the advertised /careops path redirects to the app', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  for (const p of ['/careops', '/careops/', '/careops/app.html']) {
+    const r = await fetch(app.base + p, { redirect: 'manual' });
+    assert.equal(r.status, 301, p); assert.equal(r.headers.get('location'), '/');
+  }
+});

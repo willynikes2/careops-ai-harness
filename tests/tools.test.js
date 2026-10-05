@@ -5,7 +5,7 @@ import { seedDb } from '../src/db/seed.js';
 import { fixedClock } from '../src/util/clock.js';
 import { createAudit } from '../src/audit/audit.js';
 import { validateProposal } from '../src/tools/registry.js';
-import { proposeAction, confirmAction } from '../src/tools/actions.js';
+import { proposeAction, confirmAction, dismissAction } from '../src/tools/actions.js';
 
 const clock = fixedClock('2026-10-06T14:00:00Z');
 const world = () => { const db = openDb(); seedDb(db, { clock, demoPassword: 'pw' }); return { db, audit: createAudit(db, clock) }; };
@@ -57,4 +57,36 @@ test('business-rule failure at execution is REJECTED, not a crash', () => {
   const p = proposeAction(db, { user: jordan, turnId: 't1', action: v.action, clock });
   const a = confirmAction(db, { user: jordan, actionId: p.id, clock, audit });
   assert.equal(a.status, 'REJECTED'); assert.match(a.message, /Not enough PTO/);
+});
+test('a dismissed proposal can no longer be confirmed, and the refusal is audited', () => {
+  const { db, audit } = world();
+  const v = validateProposal({ proposal: { tool: 'create_pto_request', args: { date: '2026-10-09' } }, user: jordan, intent: 'pto_request', facts: ptoFacts });
+  const p = proposeAction(db, { user: jordan, turnId: 't1', action: v.action, clock });
+  assert.throws(() => dismissAction(db, { user: marcus, actionId: p.id, audit }), /not found/);
+  assert.equal(dismissAction(db, { user: jordan, actionId: p.id, audit }).status, 'CANCELLED');
+  const a = confirmAction(db, { user: jordan, actionId: p.id, clock, audit });
+  assert.equal(a.status, 'CANCELLED'); assert.match(a.message, /dismissed/i);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM pto_requests WHERE user_id='u-jordan'").get().n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM audit_events WHERE kind='action_refused' AND security=1").get().n, 1);
+});
+test('a proposal expires after 30 minutes', () => {
+  const { db, audit } = world();
+  const v = validateProposal({ proposal: { tool: 'create_pto_request', args: { date: '2026-10-09' } }, user: jordan, intent: 'pto_request', facts: ptoFacts });
+  const p = proposeAction(db, { user: jordan, turnId: 't1', action: v.action, clock });
+  const later = fixedClock('2026-10-06T14:31:00Z');
+  const a = confirmAction(db, { user: jordan, actionId: p.id, clock: later, audit });
+  assert.equal(a.status, 'EXPIRED');
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM pto_requests WHERE user_id='u-jordan'").get().n, 0);
+  assert.throws(() => dismissAction(db, { user: jordan, actionId: p.id, audit }), /already/);
+});
+test('confirmation appends a lifecycle event to the turn decision instead of contradicting it', () => {
+  const { db, audit } = world();
+  audit.saveTrace({ turnId: 't9', user: jordan, at: clock.now().toISOString(), steps: [], decision: { execution: 'AWAITING CONFIRMATION' } });
+  const v = validateProposal({ proposal: { tool: 'create_pto_request', args: { date: '2026-10-09' } }, user: jordan, intent: 'pto_request', facts: ptoFacts });
+  const p = proposeAction(db, { user: jordan, turnId: 't9', action: v.action, clock });
+  confirmAction(db, { user: jordan, actionId: p.id, clock, audit });
+  const d = audit.getTrace('t9').decision;
+  assert.equal(d.initialExecution, 'AWAITING CONFIRMATION');
+  assert.equal(d.execution, 'SUCCESS');
+  assert.equal(d.lifecycle.length, 1); assert.equal(d.lifecycle[0].event, 'EXECUTED'); assert.match(d.lifecycle[0].auditId, /^EVT-/);
 });

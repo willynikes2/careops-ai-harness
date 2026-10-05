@@ -272,7 +272,7 @@ progress::-moz-progress-bar { border-radius: 8px; background: var(--accent); }
 .decision-card h3 { margin: 0 0 10px; font-size: 1rem; }
 .decision-grid { display: grid; grid-template-columns: minmax(150px, 38%) 1fr; gap: 6px 14px; margin: 0; }
 .decision-grid dt { color: #5b6b75; font-size: 0.86rem; }
-.decision-grid dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.decision-grid dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; white-space: pre-line; }
 .decision-good { color: #0b7a5b; }
 .decision-bad { color: #b42318; }
 .timeline-title { margin: 6px 0 2px; font-size: 1rem; }
@@ -302,3 +302,10 @@ progress::-moz-progress-bar { border-radius: 8px; background: var(--accent); }
       radial-gradient(farthest-side at 100% 50%, rgba(16,42,52,.18), transparent) right center / 10px 100% no-repeat scroll;
   }
 }
+
+/* Model Lab evidence */
+.evidence-model { border-top: 1px solid var(--line, #d9e2e7); padding: 0.75rem 0; }
+.evidence-model > summary { cursor: pointer; font-weight: 600; }
+.evidence-list { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
+.evidence-item { border-left: 3px solid var(--line, #d9e2e7); padding-left: 0.75rem; overflow-wrap: anywhere; }
+.evidence-item p { margin: 0.25rem 0; }

@@ -19,7 +19,8 @@ export function claimRoutes({ db, clock, audit }) {
   });
   r.post('/claims/:id/followups', (req, res) => {
     const b = parseBody(Followup, req.body);
-    res.status(201).json(withIdempotency(db, { key: b.idempotencyKey, userId: req.user.id, scope: 'claims:followup' }, () => {
+    if (!getAssignedClaim(db, req.user, req.params.id)) throw errors.notFound('Claim not found.'); // checked before any replay
+    res.status(201).json(withIdempotency(db, { key: b.idempotencyKey, userId: req.user.id, scope: `claims:followup:${req.params.id}`, body: b }, () => {
       const t = createFollowup(db, { user: req.user, claimId: req.params.id, kind: b.kind, note: b.note, clock });
       audit.event({ actor: req.user, kind: 'followup_created', detail: { claimId: t.claimId, kind: t.kind, via: 'form' } });
       return t;
@@ -29,7 +30,7 @@ export function claimRoutes({ db, clock, audit }) {
     const { to, idempotencyKey } = parseBody(Transition, req.body);
     const run = () => { const c = transitionClaim(db, { user: req.user, claimId: req.params.id, to }); audit.event({ actor: req.user, kind: 'claim_transition', detail: { claimId: c.id, to } }); return c; };
     try {
-      res.json(idempotencyKey ? withIdempotency(db, { key: idempotencyKey, userId: req.user.id, scope: `claims:transition:${req.params.id}` }, run) : run());
+      res.json(idempotencyKey ? withIdempotency(db, { key: idempotencyKey, userId: req.user.id, scope: `claims:transition:${req.params.id}`, body: { to } }, run) : run());
     } catch (err) {
       if (err.status === 409) audit.event({ actor: req.user, kind: 'claim_transition_rejected', security: true, detail: { claimId: req.params.id, to, reason: err.message } });
       throw err;

@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'node:url';
 import { errorHandler, HttpError } from './http/errors.js';
-import { correlationId, requireUser } from './http/middleware.js';
+import { correlationId, requireUser, auditDenials } from './http/middleware.js';
 import { authRoutes } from './auth/routes.js';
 import { healthRoutes } from './routes/health.js';
 import { createAudit } from './audit/audit.js';
@@ -27,6 +27,7 @@ export function createApp({ db, kb, provider, clock = systemClock, config, logge
     defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", 'data:'],
     connectSrc: ["'self'"], frameAncestors: ["'none'"], objectSrc: ["'none'"], baseUri: ["'self'"], formAction: ["'self'"] } } }));
   app.use(correlationId); // first, so even body-parser errors carry an id
+  app.get(/^\/careops(\/.*)?$/, (req, res) => res.redirect(301, '/')); // the link shared as shawndemos.com/careops
   app.use(express.json({ limit: '32kb' }));
   app.use(cookieParser());
   const audit = createAudit(db, clock);
@@ -41,6 +42,7 @@ export function createApp({ db, kb, provider, clock = systemClock, config, logge
   app.use('/api', labRoutes({ db, kb, provider, prompts, harness, budget, config, audit }));
   app.use('/api', (req, res, next) => next(new HttpError(404, 'not_found', 'Not found.')));
   app.use(express.static(WEB_DIR, { extensions: ['html'] }));
+  app.use(auditDenials(audit, clock));
   app.use(errorHandler(logger));
   return { app, audit, harness };
 }

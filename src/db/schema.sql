@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS billing_tasks (
 CREATE TABLE IF NOT EXISTS pending_actions (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), turn_id TEXT NOT NULL, tool TEXT NOT NULL,
   args_json TEXT NOT NULL, summary TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PROPOSED', result_json TEXT, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS idempotency_keys (key TEXT PRIMARY KEY, user_id TEXT NOT NULL, result_json TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS idempotency_keys (key TEXT PRIMARY KEY, user_id TEXT NOT NULL, result_json TEXT NOT NULL, created_at TEXT NOT NULL, fingerprint TEXT);
 CREATE TABLE IF NOT EXISTS audit_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, actor_id TEXT, actor_role TEXT, kind TEXT NOT NULL,
   security INTEGER NOT NULL DEFAULT 0, turn_id TEXT, detail_json TEXT NOT NULL);

@@ -122,9 +122,20 @@ export function createAssistant({ user, openTrace }) {
         if (result.action.status === 'EXECUTED') dataChanged();
       }
     }, 'button primary');
-    const dismiss = button('Dismiss', () => {
-      controls.replaceChildren(el('span', { class: 'muted' }, 'Dismissed'));
-      message(feedback, 'This proposal was dismissed in your browser. No action was confirmed.', 'neutral');
+    // Dismiss cancels the proposal on the server, so it cannot be confirmed later from another tab.
+    const dismiss = button('Dismiss', async () => {
+      if (dismiss.disabled) return;
+      busy(dismiss, true, 'Dismissing…');
+      confirm.disabled = true;
+      const result = await api(`/actions/${encodeURIComponent(action.id)}/dismiss`, { method: 'POST' });
+      if (result.error) {
+        busy(dismiss, false);
+        confirm.disabled = false;
+        message(feedback, result.error.message);
+      } else {
+        controls.replaceChildren(el('span', { class: 'muted' }, 'Dismissed'));
+        message(feedback, result.action.message, 'neutral');
+      }
     });
     const controls = el('div', { class: 'button-row' }, confirm, dismiss);
     return el('div', { class: 'action-card' }, el('h3', {}, `Proposed action: ${action.summary}`), el('p', { class: 'small muted' }, 'Review this change before confirming. CareOps checks your permissions again when it runs.'), controls, feedback);

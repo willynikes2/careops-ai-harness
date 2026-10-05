@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { asyncHandler, parseBody } from '../http/middleware.js';
 import { errors } from '../http/errors.js';
-import { confirmAction } from '../tools/actions.js';
+import { confirmAction, dismissAction } from '../tools/actions.js';
 import { MODELS, isKnownModel } from '../llm/models.js';
 import { getDefaultModel } from '../harness/pipeline.js';
 
@@ -22,6 +22,7 @@ export function chatRoutes({ db, clock, audit, harness, config }) {
     res.json(publicTurn(await harness.runTurn({ user: req.user, message, model: model ?? getDefaultModel(db, config) })));
   }));
   r.post('/actions/:id/confirm', (req, res) => res.json({ action: confirmAction(db, { user: req.user, actionId: req.params.id, clock, audit }) }));
+  r.post('/actions/:id/dismiss', (req, res) => res.json({ action: dismissAction(db, { user: req.user, actionId: req.params.id, audit }) }));
   r.get('/traces/:turnId', (req, res, next) => {
     const t = audit.getTrace(req.params.turnId);
     if (!t || (t.user.id !== req.user.id && req.user.role !== 'admin')) return next(errors.notFound('Trace not found.'));

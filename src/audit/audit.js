@@ -8,9 +8,15 @@ export function createAudit(db, clock) {
       return `EVT-${String(info.lastInsertRowid).padStart(6, '0')}`;
     },
     saveTrace(t) { db.prepare('INSERT OR REPLACE INTO traces (turn_id, user_id, at, steps_json, decision_json) VALUES (?,?,?,?,?)').run(t.turnId, t.user.id, t.at, JSON.stringify(t.steps), JSON.stringify(t.decision ?? null)); },
-    updateDecision(turnId, patch) {
+    // Later events (confirm, dismiss, expiry) update the current status but keep the turn's original
+    // execution status and append to a lifecycle list, so the record never contradicts itself.
+    updateDecision(turnId, patch, lifecycleEvent) {
       const r = db.prepare('SELECT decision_json FROM traces WHERE turn_id = ?').get(turnId);
-      if (r) db.prepare('UPDATE traces SET decision_json = ? WHERE turn_id = ?').run(JSON.stringify({ ...(JSON.parse(r.decision_json ?? 'null') ?? {}), ...patch }), turnId);
+      if (!r) return;
+      const d = JSON.parse(r.decision_json ?? 'null') ?? {};
+      const next = { ...d, ...patch, initialExecution: d.initialExecution ?? d.execution };
+      if (lifecycleEvent) next.lifecycle = [...(d.lifecycle ?? []), { at: clock.now().toISOString(), ...lifecycleEvent }];
+      db.prepare('UPDATE traces SET decision_json = ? WHERE turn_id = ?').run(JSON.stringify(next), turnId);
     },
     getTrace(turnId) {
       const r = db.prepare('SELECT t.*, u.username, u.display_name, u.role FROM traces t JOIN users u ON u.id = t.user_id WHERE t.turn_id = ?').get(turnId);
