@@ -2,7 +2,7 @@
 
 **App:** https://careops.shawndemos.com  
 **Repo:** `~/careops-demo` on the VPS (branch `main`) · API contract: `docs/API.md` · design spec: `docs/superpowers/specs/2026-10-03-careops-design.md`  
-**Purpose:** prove every feature works in a real web browser, that the AI harness stays inside its boundaries when the user, the model, retrieved content or the provider misbehaves, and that the app survives load. This is the release gate before the Interim HealthCare interview (Tue 2026-10-06).
+**Purpose:** prove every feature works in a real web browser, that the AI harness stays inside its boundaries when the user, the model, retrieved content or the provider misbehaves, and that the app survives load. This is the release gate before any live demonstration.
 
 Everything in the app is **synthetic**. There is no real patient, employee or payer data.
 
