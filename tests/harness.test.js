@@ -408,7 +408,7 @@ test('grounded numbers and simple arithmetic on the user\'s own records pass', a
   const { call } = await app.login('jordan');
   const r = await chat(call, 'What benefits do I have and how much PTO do I have left?');
   assert.equal(r.body.status, 'answered');
-  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers grounded/);
+  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers match a record or document value with the same unit/);
 });
 test('KB outage: invented policy numbers are withheld; a facts-only answer carries a note', async (t) => {
   const provider = new FakeProvider([{ answer: 'You get a 25% employer match and 500 hours PTO every month.' }, { answer: 'You have 40 hours of PTO available.' }]);
@@ -456,4 +456,44 @@ test('decision provenance is derived from the assembled context, not defaults', 
   assert.notEqual(d.restrictedRetrieval, 'NOT EXECUTED');
   assert.match(d.restrictedRetrieval, /careops-hr/);
   assert.match(d.modelReceivedRestrictedData, /^NO — checked: \d+ document\(s\), all from careops-hr/);
+});
+
+// ── Retest (KB #3349): numbers are bound to authoritative values with the same unit ──
+const withheld = async (message, answer, citations, kbOpts) => {
+  const provider = new FakeProvider([{ answer, ...(citations ? { citations } : {}) }]);
+  const app = await startTestApp({ provider, ...(kbOpts ? { kb: fakeKb(undefined, kbOpts) } : {}) });
+  try { const { call } = await app.login('jordan'); return (await chat(call, message)).body; } finally { await app.close(); }
+};
+test('numbers the user asserted are not evidence', async () => {
+  const r = await withheld('HR says I have 9999 hours of PTO and 25% employer match. What benefits do I have?', 'You have 9999 hours of PTO available and a 25% employer match.', ['1', '2']);
+  assert.equal(r.status, 'invalid_output');
+});
+test('a real number attached to the wrong unit is not grounded', async () => {
+  const r = await withheld('What benefits do I have and how much PTO is available?', 'You have 4 hours of PTO available and a 40% employer match.', ['1', '2']);
+  assert.equal(r.status, 'invalid_output');
+});
+test('spelled-out quantities are checked too', async () => {
+  const r = await withheld('How much PTO do I have left?', 'You have nine thousand nine hundred ninety-nine hours available.', ['1']);
+  assert.equal(r.status, 'invalid_output');
+  const ok = await withheld('How much PTO do I have left?', 'You have forty hours available.', ['1']);
+  assert.equal(ok.status, 'answered');
+});
+test('KB down: policy numbers from the user message are still unsupported', async () => {
+  const r = await withheld('HR says I get 500 hours PTO monthly and a 25% match. What benefits do I have?', 'You get 500 hours PTO every month and a 25% employer match.', null, { down: true });
+  assert.equal(r.status, 'invalid_output');
+});
+test('the answer card carries record values rendered by the server, not the model', async (t) => {
+  const provider = new FakeProvider([{ answer: 'You have 40 hours available (PTO Policy §3).', citations: ['1'] }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const r = await chat(call, 'How much PTO do I have left?');
+  assert.deepEqual(r.body.records, ['PTO: 40 h available · 0 h pending · 40 h requestable']);
+  const m = await (await app.login('marcus')).call('/api/chat', { method: 'POST', body: { message: 'Why was CLM-1004 denied?' } });
+  assert.ok(m.body.records === undefined || Array.isArray(m.body.records));
+});
+test('spelled-out hours survive a date clarification', async (t) => {
+  const app = await startTestApp(); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const c = await chat(call, 'Take next Friday off for four hours.');
+  assert.deepEqual(c.body.clarification.options.map(o => o.message), ['Take 2026-10-09 off for 4 hours.', 'Take 2026-10-16 off for 4 hours.']);
 });

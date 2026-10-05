@@ -1,3 +1,4 @@
+import { NUMBER_WORDS, wordsToNumber } from './numbers.js';
 import { nyDate } from './clock.js';
 export function addDays(ymd, n) { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 export const dow = (ymd) => new Date(`${ymd}T12:00:00Z`).getUTCDay(); // 0=Sun
@@ -6,12 +7,15 @@ export function addBusinessDays(ymd, n) { let d = ymd; let left = n; while (left
 export function businessDaysUntil(from, to) { let n = 0; for (let d = addDays(from, 1); d <= to; d = addDays(d, 1)) if (!isWeekend(d)) n += 1; return n; }
 export function formatDate(ymd) { return new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
 
-// Hours the user stated ("for 4 hours", "half day"), or null — parsed in code so a clarification cannot drop them.
+// Hours the user stated ("for 4 hours", "four hours", "half day"), or null — parsed in code so a clarification cannot drop them.
 export function requestedHours(text) {
   const t = String(text).toLowerCase();
-  const m = t.match(/\b(\d+(?:\.\d+)?)\s*(?:-\s*)?(?:hours?|hrs?|h)\b/);
-  if (m) return Number(m[1]);
-  return /\bhalf[\s-]?day\b/.test(t) ? 4 : null;
+  const digits = t.match(/\b(\d+(?:\.\d+)?)\s*(?:-\s*)?(?:hours?|hrs?|h)\b/);
+  if (digits) return Number(digits[1]);
+  const words = t.match(new RegExp(`\\b(${NUMBER_WORDS})[\\s-]+(?:hours?|hrs?)\\b`));
+  if (words) return wordsToNumber(words[1]);
+  if (/\bhalf[\s-]?day\b/.test(t)) return 4;
+  return /\b(full|whole) day\b/.test(t) ? 8 : null;
 }
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];

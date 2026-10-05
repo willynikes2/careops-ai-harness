@@ -1,5 +1,7 @@
-// Deterministic checks on what the user will read. Citations prove a document was supplied; these prove
-// that record IDs and authoritative numbers in the answer actually come from the supplied context.
+import { NUMBER_WORDS, wordsToNumber } from '../util/numbers.js';
+
+// Deterministic checks on what the user will read. Citations prove a document was supplied; these check
+// that record IDs and authoritative numbers in the answer match values the app supplied, with the same unit.
 
 // Unicode look-alikes (non-breaking hyphens, full-width digits, zero-width characters, HTML entities)
 // are folded to plain ASCII before checking, so "CLM‑5555" cannot pass as unrecognized text.
@@ -21,29 +23,47 @@ export function unknownClaimIds(text, knownIds) {
 }
 
 const num = (s) => Number(String(s).replace(/,/g, ''));
-const numbersIn = (s) => (String(s).match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map(num);
-function factNumbers(v, out = []) {
-  if (typeof v === 'number') out.push(v);
-  else if (typeof v === 'string') out.push(...numbersIn(v));
-  else if (Array.isArray(v)) v.forEach(x => factNumbers(x, out));
-  else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { factNumbers(x, out); if (/cents$/i.test(k) && typeof x === 'number') out.push(x / 100); }
+const DIGITS = '\\d[\\d,]*(?:\\.\\d+)?';
+const UNIT = '(%|percent\\b|hours?\\b|hrs?\\b|h\\b|business days?\\b|days?\\b|weeks?\\b|months?\\b|years?\\b|sessions?\\b|visits?\\b)';
+const QUANTITY = new RegExp(`\\$\\s?(${DIGITS})|(?:\\b(${DIGITS})|\\b(${NUMBER_WORDS}))[\\s-]?${UNIT}`, 'gi');
+const unitClass = (u) => (/^(%|percent)/i.test(u) ? 'percent' : /^(hours?|hrs?|h)$/i.test(u) ? 'hours' : 'count');
+
+// Each quantity in a text, as { value, unit: 'money' | 'percent' | 'hours' | 'count', text }.
+export function quantities(text) {
+  const out = [];
+  for (const m of canonicalText(text).replace(/§\s*[\d.]+/g, '').matchAll(QUANTITY)) {
+    if (m[1]) { out.push({ value: num(m[1]), unit: 'money', text: m[0].trim() }); continue; }
+    const value = m[2] ? num(m[2]) : wordsToNumber(m[3]);
+    if (value != null) out.push({ value, unit: unitClass(m[4]), text: m[0].trim() });
+  }
   return out;
 }
 
-// Quantities a reader would act on: money, percentages and durations/counts with a unit.
-const QUANTITY = /\$\s?(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s?(%|percent\b)|(\d[\d,]*(?:\.\d+)?)[\s-]?(hours?|hrs?|h|business days?|days?|weeks?|months?|years?|sessions?|visits?)\b/gi;
-const DEFAULT_PTO_DAY = 8;
+// Authoritative values by unit: the user's own records (typed by field name) and what the documents state.
+// The user's message is NOT evidence — a number the user asserted proves nothing.
+function authoritative(facts, docs) {
+  const by = { money: new Set(), percent: new Set(), hours: new Set(), count: new Set([1]) };
+  const walk = (v, key = '') => {
+    if (Array.isArray(v)) v.forEach(x => walk(x, key));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, k);
+    else if (typeof v === 'number') {
+      if (/hours/i.test(key)) by.hours.add(v);
+      else if (/cents$/i.test(key)) by.money.add(v / 100);
+    }
+  };
+  walk(facts);
+  const DEFAULT_PTO_DAY = 8;
+  const ownHours = [...by.hours, DEFAULT_PTO_DAY];
+  for (const a of ownHours) for (const b of ownHours) { by.hours.add(+(a + b).toFixed(2)); by.hours.add(+Math.abs(a - b).toFixed(2)); }
+  const money = [...by.money];
+  for (const a of money) for (const b of money) by.money.add(+(a + b).toFixed(2));
+  for (const d of docs) for (const q of quantities(d.content)) by[q.unit].add(q.value);
+  return by;
+}
 
-// Returns the quantities in `text` that appear nowhere in the facts, documents or the user's message,
-// and are not a sum or difference of the user's own figures (e.g. "40 hours minus one 8-hour day = 32").
-export function ungroundedQuantities(text, { facts = {}, docs = [], message = '' }) {
-  const own = [...new Set([...factNumbers(facts), ...numbersIn(message), DEFAULT_PTO_DAY])];
-  const allowed = new Set([...own, ...docs.flatMap(d => numbersIn(d.content))]);
-  for (const a of own) for (const b of own) { allowed.add(+(a + b).toFixed(2)); allowed.add(+Math.abs(a - b).toFixed(2)); }
-  const bad = [];
-  for (const m of canonicalText(text).replace(/§\s*[\d.]+/g, '').matchAll(QUANTITY)) {
-    const value = num(m[1] ?? m[2] ?? m[4]);
-    if (!allowed.has(value) && ![...allowed].some(a => Math.abs(a - value) < 0.005)) bad.push(m[0].trim());
-  }
-  return [...new Set(bad)];
+// Returns the quantities in `text` that match no authoritative value with the same unit (sums and
+// differences of the user's own hour figures are allowed, e.g. "40 hours minus one 8-hour day = 32").
+export function ungroundedQuantities(text, { facts = {}, docs = [] }) {
+  const by = authoritative(facts, docs);
+  return [...new Set(quantities(text).filter(q => ![...by[q.unit]].some(a => Math.abs(a - q.value) < 0.005)).map(q => q.text))];
 }

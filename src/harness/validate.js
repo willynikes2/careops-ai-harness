@@ -22,11 +22,11 @@ export function validateTurn({ text, docs, facts, user, intent, message = '' }) 
   const shown = `${data.answer} ${data.needs_clarification ?? ''}`; // everything the user will read
   const fabricated = unknownClaimIds(shown, known);
   if (fabricated.length) return { ok: false, reason: `referenced records not in the authorized context (${fabricated.join(', ')})` };
-  const ungrounded = ungroundedQuantities(shown, { facts, docs, message });
+  const ungrounded = ungroundedQuantities(shown, { facts, docs });
   if (ungrounded.length) return { ok: false, reason: `stated numbers not supported by the records or documents (${ungrounded.join(', ')})` };
   const p = validateProposal({ proposal: data.proposed_action, user, intent, facts, message });
   const citations = [...new Set(data.citations)].map(id => ({ docId: id, title: docs.find(d => d.id === id).title }));
-  const summary = ['JSON contract ✓', `${citations.length} source ID(s) recognized · numbers grounded ✓`, 'record IDs ✓',
+  const summary = ['JSON contract ✓', `${citations.length} source ID(s) recognized · numbers match a record or document value with the same unit ✓`, 'record IDs ✓',
     data.proposed_action ? (p.ok ? `tool "${data.proposed_action.tool}" allowed` : `tool request REJECTED: ${p.reason}`) : 'no tool requested'].join(' · ');
   return { ok: true, data, citations, action: p.ok ? p.action : null, actionRejection: p.ok ? null : p.reason, notOffered: p.notOffered ?? null, summary };
 }

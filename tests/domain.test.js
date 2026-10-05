@@ -72,3 +72,7 @@ test('impossible calendar dates are rejected, not rolled over', () => {
   const db = world();
   assert.throws(() => createPtoRequest(db, { user: jordan, date: '2027-02-30', clock }), /valid date/);
 });
+test('requested hours: digits, number words, half and full days', async () => {
+  const { requestedHours } = await import('../src/util/dates.js');
+  for (const [t, h] of [['for 4 hours', 4], ['for four hours', 4], ['six hrs', 6], ['a half day', 4], ['half-day', 4], ['two and a half hours', 2.5], ['an hour', 1], ['next Friday', null], ['a full day', 8]]) assert.equal(requestedHours(t), h, t);
+});

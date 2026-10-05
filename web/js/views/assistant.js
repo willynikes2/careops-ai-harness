@@ -99,6 +99,7 @@ export function createAssistant({ user, openTrace }) {
       }
       card.append(el('p', {}, el('strong', {}, turn.clarification.question)), options);
     }
+    if (turn.records?.length) card.append(el('div', { class: 'records', 'aria-label': 'From your records' }, el('span', { class: 'small muted' }, 'From your records — written by CareOps, not the AI'), el('ul', {}, turn.records.map(r => el('li', {}, r)))));
     if (turn.citations.length) card.append(el('div', { class: 'citations', 'aria-label': 'Sources' }, el('span', { class: 'small muted' }, 'Sources'), turn.citations.map(citation => el('span', { class: 'citation-chip' }, citation.title))));
     if (turn.proposedAction && ['answered', 'clarify'].includes(turn.status)) card.append(actionCard(turn.proposedAction));
     card.append(el('div', { class: 'answer-footer' }, el('span', { class: 'small muted' }, `${models.find(item => item.id === turn.model)?.label ?? turn.model ?? 'No model used'} · ${cost(turn.costUsd)} · ${(turn.latencyMs / 1000).toFixed(2)} s`), button('Why did this happen?', () => openTrace(turn.turnId), 'text-button')));

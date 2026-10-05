@@ -52,6 +52,15 @@ const describeFacts = (f) => [
   f.ptoDateCandidates && `date resolved deterministically to ${f.ptoDateCandidates[0]}`,
 ].filter(Boolean).join('; ') || 'No personal records needed.';
 
+// Authoritative values shown beside the answer, written by code from the database — never by the model.
+const usd = (cents) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+export function recordsFor(f) {
+  const out = [];
+  if (f.yourPtoBalance) { const b = f.yourPtoBalance; out.push(`PTO: ${b.hoursAvailable} h available · ${b.hoursPending} h pending · ${b.hoursRequestable} h requestable`); }
+  for (const c of (f.claims ?? []).slice(0, 5)) out.push(`${c.id}: ${c.status} · ${usd(c.amountCents)} · ${c.payer}${c.denialCode ? ` · ${c.denialCode}` : ''}`);
+  return out;
+}
+
 // Recomputed from the stored Model Lab results each time, so the selection rule (not a stale stored field) decides.
 export function getDefaultModel(db, config) {
   const row = db.prepare("SELECT results_json FROM lab_results WHERE lab = 'models'").get();
@@ -208,7 +217,8 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
     decision.execution = proposedAction ? 'AWAITING CONFIRMATION' : 'NONE';
     trace.add('execution', proposedAction ? 'ok' : 'skipped', proposedAction ? `Proposed "${proposedAction.summary}". Waiting for the user to confirm — the model cannot execute it.` : 'No action proposed.', { proposedAction });
     const clarification = v.data.needs_clarification ? { question: v.data.needs_clarification, options: [] } : null;
-    return reply({ status: clarification ? 'clarify' : 'answered', answer: v.data.answer, citations: v.citations, proposedAction, clarification, ...meta });
+    const records = recordsFor(facts);
+    return reply({ status: clarification ? 'clarify' : 'answered', answer: v.data.answer, citations: v.citations, proposedAction, clarification, ...(records.length ? { records } : {}), ...meta });
   }
   return { runTurn };
 }

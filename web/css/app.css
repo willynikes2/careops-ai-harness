@@ -309,3 +309,7 @@ progress::-moz-progress-bar { border-radius: 8px; background: var(--accent); }
 .evidence-list { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
 .evidence-item { border-left: 3px solid var(--line, #d9e2e7); padding-left: 0.75rem; overflow-wrap: anywhere; }
 .evidence-item p { margin: 0.25rem 0; }
+
+/* Server-rendered record values beside an AI answer */
+.records { margin: 12px 0 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #f6fafb; }
+.records ul { margin: 4px 0 0; padding-left: 18px; font-weight: 600; overflow-wrap: anywhere; }
