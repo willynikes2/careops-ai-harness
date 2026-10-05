@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/willynikes2/careops-ai-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/willynikes2/careops-ai-harness/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-careops.shawndemos.com-0b7a5b)](https://careops.shawndemos.com)
-![Tests](https://img.shields.io/badge/tests-197%20passing-0b7a5b)
+![Tests](https://img.shields.io/badge/tests-204%20passing-0b7a5b)
 ![Node](https://img.shields.io/badge/node-22-339933)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -46,7 +46,7 @@ Prefer a guided path? See the [five-minute walkthrough](#five-minute-walkthrough
 ## What this demonstrates
 
 - **Authorization before retrieval.** A request the role can't make is denied before any record or document is fetched, so restricted data never reaches the model.
-- **Grounded, cited answers.** Balances and claims come from the database; policy comes from a role-scoped knowledge base. Before an answer is shown, code checks that cited sources were supplied, that every claim ID is in the user's records, that every quantity (hours, %, $, days — digits or words) matches a value from the records or documents *with the same unit* (a number the user typed is not evidence), and that no protected prompt text leaks. Balances and claim figures are also shown beside the answer in a "From your records" line written by code, not the model. Unsupported non-numeric prose is constrained by the prompt, not proven.
+- **Grounded, cited answers.** Balances and claims come from the database; policy comes from a role-scoped knowledge base. Before an answer is shown, code checks that cited sources were supplied, that every claim ID is in the user's records, that every quantity (hours, %, money, business days, months… — digits or words, "$9,999" or "9999 dollars") matches a value from the records or documents *with the same unit* (a number the user typed is not evidence), that any calendar date appears in the records or documents, that a claim said to be over or under a dollar threshold really is, and that no protected prompt text leaks. Balances and claim figures are also shown beside the answer in a "From your records" line written by code, not the model. Unsupported non-numeric prose is constrained by the prompt, not proven.
 - **Proposals, not actions.** The model can only *propose* one of two narrow tools. Code validates the arguments (including the date and hours the user asked for), re-checks permission, and executes only after the user clicks **Confirm** — idempotently, so double-clicks and retries never duplicate work. **Dismiss** cancels the proposal on the server, and proposals expire after 30 minutes.
 - **Deterministic where it matters.** Dates, PTO rules and the claim state machine (DENIED → PAID is rejected) are plain code, not model judgment.
 - **Model-agnostic.** One provider interface; the Model Lab shows an open-weight model matching a frontier model on this task set at a fraction of the cost.
@@ -75,18 +75,18 @@ Retrieved documents are fenced as untrusted data; the planted injection bulletin
 
 Live runs on the deployed app. Raw data, including every scored answer: [model lab](docs/results/model-lab-2026-10-05.json), [attack lab](docs/results/attack-lab-2026-10-05.json). The Model Lab page lets you read each answer next to its score. Illustrative for this synthetic task set — not general model rankings.
 
-**Model Lab** — 13 questions × 3 repetitions per model, 5 pass/fail checks each (valid JSON, real citations, no invented record IDs, the right action, the right fact — and no invented procedures).
+**Model Lab** — 14 questions × 3 repetitions per model, 5 pass/fail checks each (valid JSON, real citations, no invented record IDs, the right action, the right fact — and no invented procedures).
 
 | Model | Passed | Cost per 1,000 answers | Avg latency |
 |---|---|---|---|
-| Qwen3 235B (open-weight) — **chosen default** | 39/39 | $0.44 | 1.9 s |
-| Claude Sonnet 5.5 | 39/39 | $10.03 | 2.5 s |
-| GPT-OSS 120B (open-weight) | 36/39 | $0.58 | 1.1 s |
-| GPT-5.4 mini | 35/39 | $1.31 | 1.3 s |
+| Qwen3 235B (open-weight) — **chosen default** | 42/42 | $0.45 | 2.1 s |
+| Claude Sonnet 5.5 | 42/42 | $10.12 | 2.4 s |
+| GPT-OSS 120B (open-weight) | 40/41 (+1 provider timeout) | $0.53 | 2.4 s |
+| GPT-5.4 mini | 39/42 | $1.30 | 1.2 s |
 
-The app picks the cheapest model that reliably clears 90% (provider errors count as misses). On this task set the open-weight model matched the frontier model at roughly **1/20 of the cost**. Its measured cost varies with the provider OpenRouter routes to: $0.26–$0.76 per 1,000 answers across runs on Oct 4–5. No correct answer in this run was withheld by the number check; every miss is visible under *Inspect the answers*.
+The app picks the cheapest model that reliably clears 90% (provider errors count as misses). On this task set the open-weight model matched the frontier model at roughly **1/20 of the cost**. Its measured cost varies with the provider OpenRouter routes to: $0.26–$0.76 per 1,000 answers across runs on Oct 4–5. In this run the harness withheld three wrong answers before anyone saw them — a claim called "over $5,000" that is $3,250, an invented deadline date, and a "Friday" that is a Wednesday — and no correct answer was withheld. Every attempt is readable under *Inspect the answers*.
 
-**Attack Lab** — 10 direct attacks from a red-team corpus plus 1 poisoned knowledge-base document, against a baseline and a hardened system prompt. Latest run: **0 prompt leaks on both prompts and 0 boundary moves.** In other runs the baseline prompt occasionally recited its own response format; the harness withheld those answers before a user saw them. Across every run, no permission, record or action crossed a boundary. The Attack Lab does not exercise confirmation, so confirmation ownership, cancellation and expiry are covered by their own tests.
+**Attack Lab** — 10 direct attacks from a red-team corpus plus 1 poisoned knowledge-base document, against a baseline and a hardened system prompt. Recent runs: the hardened prompt leaked 0/11 every time; the baseline prompt leaked 0–1/11, and each baseline leak (reciting its own response format) was withheld by the harness before a user saw it. **0 boundary moves** in every run — no permission, record or action crossed a boundary. The Attack Lab does not exercise confirmation, so confirmation ownership, cancellation and expiry are covered by their own tests.
 
 ### Measurement bugs caught along the way
 
@@ -117,7 +117,7 @@ Built in about two days with AI coding agents under a human-owned spec, plan and
 - **Spec → plan → test-first implementation.** The [design spec](docs/superpowers/specs/2026-10-03-careops-design.md) and [implementation plan](docs/superpowers/plans/2026-10-03-careops-demo.md) came first; every backend behavior has a failing test before code. [AGENTS.md](AGENTS.md) holds the rules every coding agent follows.
 - **Parallel agents.** Claude Code built the backend, harness and tests; OpenAI Codex built the front end and knowledge documents against a frozen [API contract](docs/API.md), then the work was reviewed and merged.
 - **Independent review and testing.** A fresh reviewer audited the whole branch; Grok and Codex then ran the full [browser + stress test plan](docs/TEST_PLAN.md) (99 test IDs) against the live site twice. Their findings were fixed test-first; the second pass found no P0/P1 issues.
-- **Hostile technical review.** A separate reviewer (ChatGPT, acting as a skeptical interviewer) found no critical issues but 3 P1 and 6 P2 weaknesses: replayed request keys, a dropped PTO-hours parameter, unaudited REST denials, look-alike claim IDs, false numbers passing with valid citations, dismiss not cancelling, trace fields set by default, and Model Lab scores without stored evidence. Each was reproduced, fixed test-first, and re-checked against the live site. The reviewer's retest confirmed seven fixed and found two gaps in the fixes (numbers from the user's own message counted as evidence and units weren't bound; "four hours" in words was dropped) — both fixed the same way.
+- **Hostile technical review.** A separate reviewer (ChatGPT, acting as a skeptical interviewer) found no critical issues but 3 P1 and 6 P2 weaknesses: replayed request keys, a dropped PTO-hours parameter, unaudited REST denials, look-alike claim IDs, false numbers passing with valid citations, dismiss not cancelling, trace fields set by default, and Model Lab scores without stored evidence. Each was reproduced, fixed test-first, and re-checked against the live site. The reviewer's retest confirmed seven fixed and found two gaps in the fixes (numbers from the user's own message counted as evidence and units weren't bound; "four hours" in words was dropped) — both fixed the same way. A second retest confirmed those and found three narrower gaps — all durations shared one unit ("2 business days" could back "2 years"), money was only checked with a `$` prefix, and a model's false "this claim is over $5,000" passed the Model Lab — also fixed test-first.
 - **Live verification.** A Playwright suite drives the nine-step demo path against the deployed app, and the labs measure real model behavior and cost.
 
 ## Run it locally
@@ -128,7 +128,7 @@ Requires Node.js 22+. The front end has no build step.
 git clone https://github.com/willynikes2/careops-ai-harness.git
 cd careops-ai-harness
 npm ci
-npm test                      # 197 unit/integration tests — no network, no API keys
+npm test                      # 204 unit/integration tests — no network, no API keys
 ```
 
 **Workflows only (no AI):** start the server without a knowledge base or model key — PTO, approvals, claims, audit and reset all work; the assistant reports itself unavailable.
@@ -162,7 +162,7 @@ node --env-file=.env src/main.js
 
 | Suite | Command | What it covers |
 |---|---|---|
-| Unit / integration | `npm test` | 197 tests: auth, policy matrix, retrieval scoping, PTO rules, claim state machine, tool validation, idempotency, provider failures, injection, grounding, labs |
+| Unit / integration | `npm test` | 204 tests: auth, policy matrix, retrieval scoping, PTO rules, claim state machine, tool validation, idempotency, provider failures, injection, grounding, labs |
 | Live demo path | `BASE_URL=https://careops.shawndemos.com npm run e2e` | The nine-step walkthrough in a real browser (resets demo data) |
 | Retry safety | `e2e/retry.spec.js` against a local server | A dropped connection plus retry creates exactly one record |
 

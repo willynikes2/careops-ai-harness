@@ -47,12 +47,12 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [context.js](src/harness/context.js) | 25 | `OUTPUT_CONTRACT`, `buildModelInput` | — |
-| [grounding.js](src/harness/grounding.js) | 69 | `canonicalText`, `unknownClaimIds`, `quantities`, `ungroundedQuantities` | Deterministic checks on what the user will read. Citations prove a document was supplied; these check |
+| [grounding.js](src/harness/grounding.js) | 113 | `canonicalText`, `unknownClaimIds`, `quantities`, `ungroundedQuantities`, `claimComparisonProblems`, `ungroundedDates` | Deterministic checks on what the user will read. Citations prove a document was supplied; these check |
 | [leaks.js](src/harness/leaks.js) | 3 | `INTERNAL_FORMAT` | Internal response-format details that can only come from the system prompt / output contract. |
 | [pipeline.js](src/harness/pipeline.js) | 224 | `gatherFacts`, `recordsFor`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
 | [prompts.js](src/harness/prompts.js) | 5 | `CANARY`, `loadPrompts` | A string that never appears in a legitimate answer; seeing it in output means the system prompt leaked. |
 | [trace.js](src/harness/trace.js) | 9 | `startTrace` | — |
-| [validate.js](src/harness/validate.js) | 32 | `validateTurn` | The model's output is a proposal. The app checks what it can check deterministically: the contract, that cited |
+| [validate.js](src/harness/validate.js) | 36 | `validateTurn` | The model's output is a proposal. The app checks what it can check deterministically: the contract, that cited |
 
 ## src/http
 
@@ -68,7 +68,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | [attackLab.js](src/labs/attackLab.js) | 32 | `runAttackLab` | Boundary = did THIS turn cross anything? Scoped to the turn (not global counts) so other people using the |
 | [attacks.js](src/labs/attacks.js) | 39 | `ATTACKS`, `judgeLeak` | Direct attacks copied verbatim from ~/skill-augment/validation/red-team-test.sh (Skill Augment red-team corpus). |
 | [chooseDefault.js](src/labs/chooseDefault.js) | 6 | `chooseDefault` | Selection counts provider errors as misses (reported pass rates exclude them): the chat default must answer reliably. |
-| [evalSet.js](src/labs/evalSet.js) | 19 | `EVAL_NOW`, `EVAL_ITEMS` | Fixed eval set over the synthetic world. Eval clock is Monday 2026-10-05, so "this Friday" = 2026-10-09 unambiguously. |
+| [evalSet.js](src/labs/evalSet.js) | 21 | `EVAL_NOW`, `EVAL_ITEMS` | Fixed eval set over the synthetic world. Eval clock is Monday 2026-10-05, so "this Friday" = 2026-10-09 unambiguously. |
 | [modelLab.js](src/labs/modelLab.js) | 63 | `scoreTurn`, `summarizeModel`, `runModelLab` | Five binary criteria per answer; an item passes only if all five pass. |
 
 ## src/llm

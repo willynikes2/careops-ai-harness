@@ -37,7 +37,7 @@ CareOps demonstrates *harness engineering*: the model reasons; deterministic cod
 ## Commands
 ```sh
 npm ci
-npm test                                   # 197 unit/integration tests, no network or keys
+npm test                                   # 204 unit/integration tests, no network or keys
 node --env-file=.env src/main.js           # local server on :3000 (workflows work without a KB or model key)
 node --env-file=.env scripts/load-kb.js    # load seed/kb-docs into a dedicated KB instance
 npm run codemap                            # regenerate CODEMAP.md
