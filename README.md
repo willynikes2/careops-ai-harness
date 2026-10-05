@@ -189,6 +189,16 @@ docs/           API contract, test plan, verification map, design spec and plan
 
 A generated file-by-file map is in [CODEMAP.md](CODEMAP.md).
 
+## What I'd build next
+
+The answer checks today are deterministic rules on purpose: they are auditable, cost nothing per answer, and were calibrated against 1,110 real model answers (15 genuinely wrong answers withheld, no correct ones). Their limit is language understanding — a wording no rule anticipates can slip through or be withheld. The next layers, in order:
+
+1. **Structured answers for critical facts.** The model returns facts as data (`{ "fact": "pto_balance", "value": 40 }`) and the server writes the sentence, so balances, amounts, dates and statuses never reach the user as unchecked prose. The "From your records" line is the first step of this.
+2. **A model-based support check for wording.** A second, smaller model (or an entailment/NLI model) asks of each sentence: *is this supported by the supplied records and documents?* Before trusting it, measure it against human-labelled answers — how often it catches real errors and how often it blocks correct ones — the same way the replay script measures the rules today.
+3. **Rules stay as the first layer.** Numbers, dates, IDs and permissions are where models are weakest and rules are strongest, so the deterministic checks remain the cheap, auditable gate in front of the other two.
+
+Beyond answer quality: a larger and regularly refreshed attack corpus, load and concurrency testing, and per-tenant data isolation for anything beyond a demo.
+
 ## Limitations
 
 - Synthetic data only. This is not HIPAA-compliant software, clinical advice, or a connection to an EHR, payer or clearinghouse.
