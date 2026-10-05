@@ -408,7 +408,7 @@ test('grounded numbers and simple arithmetic on the user\'s own records pass', a
   const { call } = await app.login('jordan');
   const r = await chat(call, 'What benefits do I have and how much PTO do I have left?');
   assert.equal(r.body.status, 'answered');
-  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers, dates and statuses match the records or documents/);
+  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers, dates, statuses and procedures match the records or documents/);
 });
 test('KB outage: invented policy numbers are withheld; a facts-only answer carries a note', async (t) => {
   const provider = new FakeProvider([{ answer: 'You get a 25% employer match and 500 hours PTO every month.' }, { answer: 'You have 40 hours of PTO available.' }]);
@@ -557,4 +557,30 @@ test('a PTO request status must match the user\'s own requests', async (t) => {
   await call('/api/pto/requests', { method: 'POST', body: { date: '2026-10-09', idempotencyKey: 'k' } });
   assert.equal((await chat(call, 'Was my PTO request approved?')).body.status, 'invalid_output');
   assert.equal((await chat(call, 'Was my PTO request approved?')).body.status, 'answered');
+});
+
+// ── Retest 3 (KB #3356): full dates, concept-bound numbers, threshold wording, invented procedures ──
+test('a full date must match including the year', async () => {
+  assert.equal((await marcusSays('What is the service date on CLM-1004?', 'The service date on CLM-1004 is 2036-08-26.')).status, 'invalid_output');
+  assert.equal((await marcusSays('What is the service date on CLM-1004?', 'The service date on CLM-1004 is August 26, 2036.')).status, 'invalid_output');
+  assert.equal((await marcusSays('What is the service date on CLM-1004?', 'The service date on CLM-1004 is 2026-08-26.')).status, 'answered');
+  assert.equal((await marcusSays('What is the service date on CLM-1004?', 'The service date on CLM-1004 is August 26, 2026.')).status, 'answered');
+});
+test('a record value cannot stand in for a policy concept (balance is not notice)', async () => {
+  assert.equal((await withheld('How much notice is required for PTO?', 'PTO requests require 40 hours notice.', ['1'])).status, 'invalid_output');
+  assert.equal((await withheld('How much notice is required for PTO?', 'PTO requests require 40 hours notice.', null, { down: true })).status, 'invalid_output');
+  assert.equal((await withheld('How much notice is required for PTO?', 'You have 40 hours of PTO available. PTO requests require 40 hours notice.', ['1'])).status, 'invalid_output', 'an earlier grounded value is not reusable for a new concept');
+  assert.equal((await withheld('How much PTO do I have left?', 'You have 2 business days available and need 40 hours notice.', ['1'])).status, 'invalid_output', 'each number binds to the concept in its own clause');
+});
+test('every wording of "this claim is over the threshold" is checked', async () => {
+  for (const a of ['The claim amount is $3,250. The claim amount is over $5,000, so escalate it.', 'Because its amount exceeds the $5,000 threshold, escalate it.', 'This one is above the escalation threshold of $5,000.', 'CLM-1004 is more than $5,000.']) {
+    assert.equal((await marcusSays('Does CLM-1004 need to be escalated to the billing supervisor?', a, ['4'])).status, 'invalid_output', a);
+  }
+  for (const a of ['CLM-1004 is $3,250, which is not over $5,000, so it does not need escalation.', 'Claims over $5,000 are escalated; CLM-1004 is $3,250 and below that threshold.']) {
+    assert.equal((await marcusSays('Does CLM-1004 need to be escalated to the billing supervisor?', a, ['4'])).status, 'answered', a);
+  }
+});
+test('an answer may not invent a channel or document the sources never mention', async () => {
+  assert.equal((await withheld('What dental coverage do I have?', 'Cleanings are covered at 100%. Submit the invoice through the benefits portal for reimbursement.', ['2'])).status, 'invalid_output');
+  assert.equal((await withheld('What dental coverage do I have?', 'Cleanings are covered at 100% (Employee Benefits Guide 2026 §2). For claim questions, contact the people team.', ['2'])).status, 'answered');
 });

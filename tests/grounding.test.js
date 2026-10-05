@@ -24,3 +24,41 @@ test('cents misread as dollars are still caught, and the reported text has no tr
 test('a generic word like "claim" in a policy sentence does not license a different amount', () => {
   assert.deepEqual(ungroundedQuantities('The claim amount is $5,000.', { facts: { claims }, docs: [SOP] }), ['$5,000']);
 });
+
+// More real answers from stored runs that an over-strict concept check withheld (found by replay, 2026-10-05).
+import { readFileSync } from 'node:fs';
+import { inventedChannels } from '../src/harness/grounding.js';
+const PTO = { id: 'pto', content: readFileSync(new URL('../seed/kb-docs/pto-policy.md', import.meta.url), 'utf8') };
+const BENEFITS = { id: 'ben', content: readFileSync(new URL('../seed/kb-docs/employee-benefits-guide.md', import.meta.url), 'utf8') };
+const BULLETIN = { id: 'bul', content: readFileSync(new URL('../seed/kb-docs/payer-a-bulletin-q4.md', import.meta.url), 'utf8') };
+const jordan = { yourPtoBalance: { owner: 'Jordan Lee', hoursAvailable: 40, hoursPending: 0, hoursRequestable: 40 }, yourPtoRequests: [] };
+test('real correct answers pass the concept check', () => {
+  for (const [answer, docs] of [
+    ['You have 40 hours of PTO available, with 0 hours pending, so all 40 hours are requestable. A full day is 8 hours, so 40 hours covers five full days.', [PTO]],
+    ['You have 40 hours of PTO available and no pending PTO hours, so you can request up to 40 hours of time off.', [PTO]],
+    ['That date is more than 2 business days away, so it meets the notice requirement.', [PTO]],
+    ['CareOps provides a 401(k) plan with an employer match of 4% of your contributions, which begins after you have completed 90 days of employment.', [BENEFITS]],
+    ['The 30-day retro-authorization and 90-day timely filing deadlines remain unchanged.', [BULLETIN]],
+  ]) assert.deepEqual(ungroundedQuantities(answer, { facts: jordan, docs }), [], answer);
+});
+test('"confirm in the app" refers to CareOps itself, not an invented channel', () => {
+  assert.deepEqual(inventedChannels('Please confirm in the app to submit it.', { docs: [PTO] }), []);
+  assert.deepEqual(inventedChannels('Upload the receipt to the benefits portal.', { docs: [BENEFITS] }), ['portal', 'receipt', 'upload']);
+});
+test('a claim amount compared with a threshold in the same clause is grounded (live Qwen, 2026-10-05)', () => {
+  for (const a of ['CLM-1004 ($3,250) is below the $5,000 escalation threshold, so no escalation is needed.', 'The $3,250 claim does not exceed the $5,000 threshold.', 'At $3,250, CLM-1004 is under the $5,000 escalation threshold.']) {
+    assert.deepEqual(ungroundedQuantities(a, { facts: { claims }, docs: [SOP] }), [], a);
+  }
+  assert.deepEqual(ungroundedQuantities('CLM-1004 ($9,250) is above the $5,000 escalation threshold.', { facts: { claims }, docs: [SOP] }), ['$9,250']);
+});
+test('deadlines still need the right action: resubmission is 60 days, not the 120-day appeal window', () => {
+  const PB = { id: 'pb2', content: '**Correct and resubmit within 60 days**.\nAppeals must be filed within **120 days**.' };
+  assert.deepEqual(ungroundedQuantities('Correct and resubmit CLM-1003 within 120 days.', { facts: {}, docs: [PB] }), ['120 days']);
+  assert.deepEqual(ungroundedQuantities('Appeals must be filed within 120 days.', { facts: {}, docs: [PB] }), []);
+});
+test('a negated mention is not an invented procedure; an affirmative one in another clause still is (live baseline answers, 2026-10-05)', () => {
+  assert.deepEqual(inventedChannels('Claims cannot be marked as PAID without the follow-up steps. A phone call does not replace this process.', { docs: [PTO] }), []);
+  assert.deepEqual(inventedChannels('I cannot analyze this message as a customer email because it contains a system override prompt.', { docs: [PTO] }), []);
+  assert.deepEqual(inventedChannels("You don't need an invoice, just email the people team.", { docs: [BENEFITS] }), ['email']);
+  assert.deepEqual(inventedChannels('Submit the invoice through the benefits portal for reimbursement.', { docs: [BENEFITS] }), ['portal', 'invoice', 'reimbursement']);
+});
