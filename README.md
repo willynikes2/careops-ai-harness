@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/willynikes2/careops-ai-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/willynikes2/careops-ai-harness/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-careops.shawndemos.com-0b7a5b)](https://careops.shawndemos.com)
-![Tests](https://img.shields.io/badge/tests-217%20passing-0b7a5b)
+![Tests](https://img.shields.io/badge/tests-218%20passing-0b7a5b)
 ![Node](https://img.shields.io/badge/node-22-339933)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -128,7 +128,7 @@ Requires Node.js 22+. The front end has no build step.
 git clone https://github.com/willynikes2/careops-ai-harness.git
 cd careops-ai-harness
 npm ci
-npm test                      # 217 unit/integration tests — no network, no API keys
+npm test                      # 218 unit/integration tests — no network, no API keys
 ```
 
 **Workflows only (no AI):** start the server without a knowledge base or model key — PTO, approvals, claims, audit and reset all work; the assistant reports itself unavailable.
@@ -162,7 +162,7 @@ node --env-file=.env src/main.js
 
 | Suite | Command | What it covers |
 |---|---|---|
-| Unit / integration | `npm test` | 217 tests: auth, policy matrix, retrieval scoping, PTO rules, claim state machine, tool validation, idempotency, provider failures, injection, grounding, labs |
+| Unit / integration | `npm test` | 218 tests: auth, policy matrix, retrieval scoping, PTO rules, claim state machine, tool validation, idempotency, provider failures, injection, grounding, labs |
 | Live demo path | `BASE_URL=https://careops.shawndemos.com npm run e2e` | The nine-step walkthrough in a real browser (resets demo data) |
 | Retry safety | `e2e/retry.spec.js` against a local server | A dropped connection plus retry creates exactly one record |
 
