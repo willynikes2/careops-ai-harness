@@ -60,7 +60,7 @@ PORT=3999 DB_PATH=/tmp/careops-test/careops.db KB_URL=http://127.0.0.1:9 KB_API_
 ### 1.5 Existing automated suites (run first; both must be green)
 
 ```sh
-cd ~/careops-demo && npm test                                   # full unit/integration suite (204 as of 2026-10-05), no network
+cd ~/careops-demo && npm test                                   # full unit/integration suite (217 as of 2026-10-05), no network
 BASE_URL=https://careops.shawndemos.com npx playwright test   # 9-step live demo path (resets data; ~6 AI calls)
 ```
 
