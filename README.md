@@ -6,7 +6,9 @@ CareOps is a synthetic healthcare operations demo where employees request PTO, m
 
 ## Live demo
 
-[Open CareOps](https://careops-178-156-255-110.sslip.io).
+[Open CareOps](https://careops.shawndemos.com).
+
+The same deployment also answers on https://shawndemos.com and the fallback https://careops-178-156-255-110.sslip.io (one Let's Encrypt certificate covers all three; DNS is on Cloudflare, DNS-only).
 
 ## Demo accounts
 
@@ -134,7 +136,7 @@ Open `http://localhost:3000`. The loader adds new documents and skips unchanged 
 npm test
 npm run codemap
 npx playwright install chromium
-BASE_URL=https://careops-178-156-255-110.sslip.io npm run e2e
+BASE_URL=https://careops.shawndemos.com npm run e2e
 ```
 
 The existing `node:test` suite uses real SQLite, a [fake model provider](src/llm/fake.js), and a [KB fixture](tests/fixtures/kb.js). API tests start local HTTP listeners through [tests/helpers.js](tests/helpers.js); they need permission to bind local sockets, but no external service or provider credentials.

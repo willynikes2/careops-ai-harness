@@ -1,6 +1,6 @@
 # CareOps — End-to-End Browser Test Plan (for Grok, Codex, and any test agent)
 
-**App:** https://careops-178-156-255-110.sslip.io  
+**App:** https://careops.shawndemos.com  
 **Repo:** `~/careops-demo` on the VPS (branch `main`) · API contract: `docs/API.md` · design spec: `docs/superpowers/specs/2026-10-03-careops-design.md`  
 **Purpose:** prove every feature works in a real web browser, that the AI harness stays inside its boundaries when the user, the model, retrieved content or the provider misbehaves, and that the app survives load. This is the release gate before the Interim HealthCare interview (Tue 2026-10-06).
 
@@ -61,7 +61,7 @@ PORT=3999 DB_PATH=/tmp/careops-test/careops.db KB_URL=http://127.0.0.1:9 KB_API_
 
 ```sh
 cd ~/careops-demo && npm test                                   # 160 unit/integration tests, no network
-BASE_URL=https://careops-178-156-255-110.sslip.io npx playwright test   # 9-step live demo path (resets data; ~6 AI calls)
+BASE_URL=https://careops.shawndemos.com npx playwright test   # 9-step live demo path (resets data; ~6 AI calls)
 ```
 
 ---

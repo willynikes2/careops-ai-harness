@@ -2,7 +2,7 @@
 
 **SYNTHETIC DEMO DATA — no real patients, employees, or PHI.** Every person and record below is fictional.
 
-Open [the live demo](https://careops-178-156-255-110.sslip.io) or your local CareOps server. All five accounts use **`careops-demo`** by default. The login page offers **Enter as …** persona buttons for the four primary roles (they create a normal server session; no role is sent from the browser); type `sam` into the username form to use the second employee account.
+Open [the live demo](https://careops.shawndemos.com) or your local CareOps server. All five accounts use **`careops-demo`** by default. The login page offers **Enter as …** persona buttons for the four primary roles (they create a normal server session; no role is sent from the browser); type `sam` into the username form to use the second employee account.
 
 | Username | Display name | Role | Access |
 | --- | --- | --- | --- |

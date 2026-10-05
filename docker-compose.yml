@@ -12,7 +12,8 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=edge-node_internal
-      - traefik.http.routers.careops.rule=Host(`${PUBLIC_HOST}`)
+      # TRAEFIK_HOST_RULE (required, in .env) lets one deployment answer on several names, e.g. a custom domain plus a fallback
+      - traefik.http.routers.careops.rule=${TRAEFIK_HOST_RULE:?set TRAEFIK_HOST_RULE in .env}
       - traefik.http.routers.careops.entrypoints=websecure
       - traefik.http.routers.careops.tls.certresolver=letsencrypt
       - traefik.http.services.careops.loadbalancer.server.port=3000
