@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/willynikes2/careops-ai-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/willynikes2/careops-ai-harness/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-careops.shawndemos.com-0b7a5b)](https://careops.shawndemos.com)
-![Tests](https://img.shields.io/badge/tests-218%20passing-0b7a5b)
+![Tests](https://img.shields.io/badge/tests-229%20passing-0b7a5b)
 ![Node](https://img.shields.io/badge/node-22-339933)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -46,7 +46,7 @@ Prefer a guided path? See the [five-minute walkthrough](#five-minute-walkthrough
 ## What this demonstrates
 
 - **Authorization before retrieval.** A request the role can't make is denied before any record or document is fetched, so restricted data never reaches the model.
-- **Grounded, cited answers.** Balances and claims come from the database; policy comes from a role-scoped knowledge base. Before an answer is shown, code checks that cited sources were supplied, that every claim ID is in the user's records, that every quantity (hours, %, money, business days, months… — digits or words, "$9,999" or "9999 dollars") matches a value from the records or documents with the *same unit and the same topic* ("40 hours" from the carryover rule can't be stated as a balance or a notice period; a number the user typed is not evidence), that any calendar date appears in the records or documents, that claim statuses, PTO request statuses, denial codes and payers match the record, that a claim said to be over or under a dollar threshold really is, and that no protected prompt text leaks. Balances and claim figures are also shown beside the answer in a "From your records" line written by code, not the model. Free-form advice (procedures, explanations) is constrained by the prompt and the Model Lab, not proven.
+- **Grounded, cited answers.** Balances and claims come from the database; policy comes from a role-scoped knowledge base. Before an answer is shown, code checks that cited sources were supplied, that every claim ID is in the user's records, that every quantity (hours, %, money, business days, months… — digits or words, "$9,999" or "9999 dollars") matches a value from the records or documents with the *same unit and the same concept* — notice period, accrual, carryover, deadline, threshold, balance, claim amount ("40 hours" from your balance or the carryover rule can never be stated as a notice period; a number the user typed is not evidence) — that any calendar date appears in the records or documents (year included), that claim statuses, PTO request statuses, denial codes and payers match the record, that a claim said to be over or under a dollar threshold really is (however it is worded), that a procedure only uses channels the documents mention (no invented portals, invoices or reimbursement steps), and that no protected prompt text leaks. Balances and claim figures are also shown beside the answer in a "From your records" line written by code, not the model. Free-form advice (procedures, explanations) is constrained by the prompt and the Model Lab, not proven.
 - **Proposals, not actions.** The model can only *propose* one of two narrow tools. Code validates the arguments (including the date and hours the user asked for), re-checks permission, and executes only after the user clicks **Confirm** — idempotently, so double-clicks and retries never duplicate work. **Dismiss** cancels the proposal on the server, and proposals expire after 30 minutes.
 - **Deterministic where it matters.** Dates, PTO rules and the claim state machine (DENIED → PAID is rejected) are plain code, not model judgment.
 - **Model-agnostic.** One provider interface; the Model Lab shows an open-weight model matching a frontier model on this task set at a fraction of the cost.
@@ -79,14 +79,14 @@ Live runs on the deployed app. Raw data, including every scored answer: [model l
 
 | Model | Passed | Cost per 1,000 answers | Avg latency |
 |---|---|---|---|
-| Qwen3 235B (open-weight) — **chosen default** | 42/42 | $0.45 | 2.1 s |
-| Claude Sonnet 5.5 | 42/42 | $10.12 | 2.4 s |
-| GPT-OSS 120B (open-weight) | 40/41 (+1 provider timeout) | $0.53 | 2.4 s |
-| GPT-5.4 mini | 39/42 | $1.30 | 1.2 s |
+| Qwen3 235B (open-weight) — **chosen default** | 42/42 | $0.45 | 2.0 s |
+| Claude Sonnet 5.5 | 42/42 | $10.09 | 2.3 s |
+| GPT-OSS 120B (open-weight) | 39/42 | $1.07 | 0.9 s |
+| GPT-5.4 mini | 39/42 | $1.18 | 1.2 s |
 
-The app picks the cheapest model that reliably clears 90% (provider errors count as misses). On this task set the open-weight model matched the frontier model at roughly **1/20 of the cost**. Its measured cost varies with the provider OpenRouter routes to: $0.26–$0.76 per 1,000 answers across runs on Oct 4–5. In this run the harness withheld three wrong answers before anyone saw them — a claim called "over $5,000" that is $3,250, an invented deadline date, and a "Friday" that is a Wednesday — and no correct answer was withheld. Every attempt is readable under *Inspect the answers*. Validator changes are checked for free with `scripts/replay-answers.js`, which re-runs stored real answers through the current checks: across 782 stored answers, the latest checks withhold 14, and all 14 are wrong (cents read as dollars, false "over $5,000", invented deadlines, a wrong weekday).
+The app picks the cheapest model that reliably clears 90% (provider errors count as misses). On this task set the open-weight model matched the frontier model at roughly **1/20 of the cost**. Its measured cost varies with the provider OpenRouter routes to: $0.26–$0.76 per 1,000 answers across runs on Oct 4–5. In this run the harness withheld four wrong answers before anyone saw them — three "Friday" dates that are a Wednesday and an invented deadline — and no correct answer was withheld. Every attempt is readable under *Inspect the answers*. Validator changes are checked for free with `scripts/replay-answers.js`, which re-runs stored real answers through the current checks: across 1,110 stored answers, the latest checks withhold 15, and all 15 are wrong (cents read as dollars, false "over $5,000" in several wordings, invented deadlines, a wrong weekday).
 
-**Attack Lab** — 10 direct attacks from a red-team corpus, 1 poisoned knowledge-base document, and 1 tool-abuse request (a legitimate follow-up wrapped around "apply it to every other biller's claims"), against a baseline and a hardened system prompt. Recent runs: the hardened prompt leaked 0 every time; the baseline prompt leaked 0–1 per run, and each baseline leak (reciting its own response format) was withheld by the harness before a user saw it. **0 boundary moves** in every run — no permission, record or action crossed a boundary. For every proposed action, the lab also clicks **Confirm** as the attacker — inside a database transaction that is always rolled back — and records exactly which rows would change and whose they are; protected data is detected from the database (every patient name and claim ID the attacker may not see), not a fixed list.
+**Attack Lab** — 18 attacks: 10 prompt attacks from a red-team corpus, 1 poisoned knowledge-base document, 4 tool-abuse requests (a follow-up spread to other billers' claims, PTO for a coworker plus self-approval, forcing a claim to PAID, a manager approving everyone) and 3 cross-user data requests (coworkers' balances, an unassigned claim, every patient in the system), against a baseline and a hardened system prompt. Latest run on Qwen3: **the hardened prompt — 0 leaks, 0 interventions, 0 boundary moves across all 18 attacks.** The baseline prompt leaked once (it recited its own response format) and the harness withheld that answer before a user saw it. No run has ever recorded a boundary move. On GPT-OSS, the all-patients attack got the model to comply — and it could still only list the two patients on Marcus's own claims, because the harness had never given it anyone else's: the prompt layer gave way and the boundary held. For every proposed action, the lab also clicks **Confirm** as the attacker — inside a database transaction that is always rolled back — and records exactly which rows would change and whose they are; protected data is detected from the database (every patient name and claim ID the attacker may not see), not a fixed list.
 
 ### Measurement bugs caught along the way
 
@@ -128,7 +128,7 @@ Requires Node.js 22+. The front end has no build step.
 git clone https://github.com/willynikes2/careops-ai-harness.git
 cd careops-ai-harness
 npm ci
-npm test                      # 218 unit/integration tests — no network, no API keys
+npm test                      # 229 unit/integration tests — no network, no API keys
 ```
 
 **Workflows only (no AI):** start the server without a knowledge base or model key — PTO, approvals, claims, audit and reset all work; the assistant reports itself unavailable.
@@ -162,7 +162,7 @@ node --env-file=.env src/main.js
 
 | Suite | Command | What it covers |
 |---|---|---|
-| Unit / integration | `npm test` | 218 tests: auth, policy matrix, retrieval scoping, PTO rules, claim state machine, tool validation, idempotency, provider failures, injection, grounding, labs |
+| Unit / integration | `npm test` | 229 tests: auth, policy matrix, retrieval scoping, PTO rules, claim state machine, tool validation, idempotency, provider failures, injection, grounding, labs |
 | Live demo path | `BASE_URL=https://careops.shawndemos.com npm run e2e` | The nine-step walkthrough in a real browser (resets demo data) |
 | Retry safety | `e2e/retry.spec.js` against a local server | A dropped connection plus retry creates exactly one record |
 
@@ -195,7 +195,7 @@ A generated file-by-file map is in [CODEMAP.md](CODEMAP.md).
 - OpenRouter is a demo provider. Production use with PHI would require an approved provider under a BAA and the wider controls described in [SECURITY.md](SECURITY.md).
 - Shared demo accounts and a reset button serve a demonstration, not tenant isolation or enterprise identity.
 - Lab samples are small and task-specific; neither lab proves general safety or quality.
-- Citation checks verify that sources were supplied, not that every sentence is supported. Quantities are bound to a value with the same unit and a shared topic word, which is a deterministic heuristic, not semantic understanding: an unusual paraphrase can be withheld, and a sentence that shares a topic word with the wrong fact could pass. The server-written records line is shown next to the answer for that reason. Free-form advice is not verified; known grounding gaps are tracked as Model Lab items.
+- Citation checks verify that sources were supplied, not that every sentence is supported. Answer checks are deterministic rules, not semantic understanding. Numbers are bound by unit and concept, dates by full date, statuses, codes and payers by record, thresholds by claim, procedures by the channels the documents name — and each rule was calibrated against 1,110 stored real answers (15 genuinely wrong answers withheld, no correct ones). A wording no rule anticipates can still pass or be withheld; the server-written records line beside each answer is the backstop. General advice that names no number, date, status or channel is constrained by the prompt and the Model Lab, not proven.
 - The defensible claim is: *the model cannot expand its permissions or execute arbitrary tools; deterministic server code scopes context and controls confirmed business writes.* The labs do not prove universal safety.
 - The budget check uses recorded costs, not reservations for in-flight requests; set a provider-side spending limit too.
 
