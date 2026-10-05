@@ -48,7 +48,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | --- | ---: | --- | --- |
 | [context.js](src/harness/context.js) | 25 | `OUTPUT_CONTRACT`, `buildModelInput` | — |
 | [leaks.js](src/harness/leaks.js) | 3 | `INTERNAL_FORMAT` | Internal response-format details that can only come from the system prompt / output contract. |
-| [pipeline.js](src/harness/pipeline.js) | 196 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
+| [pipeline.js](src/harness/pipeline.js) | 198 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
 | [prompts.js](src/harness/prompts.js) | 5 | `CANARY`, `loadPrompts` | A string that never appears in a legitimate answer; seeing it in output means the system prompt leaked. |
 | [trace.js](src/harness/trace.js) | 9 | `startTrace` | — |
 | [validate.js](src/harness/validate.js) | 29 | `validateTurn` | The model's output is a proposal. Every claim it makes that the app can check, the app checks. |
@@ -67,8 +67,8 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | [attackLab.js](src/labs/attackLab.js) | 32 | `runAttackLab` | Boundary = did THIS turn cross anything? Scoped to the turn (not global counts) so other people using the |
 | [attacks.js](src/labs/attacks.js) | 39 | `ATTACKS`, `judgeLeak` | Direct attacks copied verbatim from ~/skill-augment/validation/red-team-test.sh (Skill Augment red-team corpus). |
 | [chooseDefault.js](src/labs/chooseDefault.js) | 6 | `chooseDefault` | Selection counts provider errors as misses (reported pass rates exclude them): the chat default must answer reliably. |
-| [evalSet.js](src/labs/evalSet.js) | 17 | `EVAL_NOW`, `EVAL_ITEMS` | Fixed eval set over the synthetic world. Eval clock is Monday 2026-10-05, so "this Friday" = 2026-10-09 unambiguously. |
-| [modelLab.js](src/labs/modelLab.js) | 53 | `scoreTurn`, `summarizeModel`, `runModelLab` | Five binary criteria per answer; an item passes only if all five pass. |
+| [evalSet.js](src/labs/evalSet.js) | 19 | `EVAL_NOW`, `EVAL_ITEMS` | Fixed eval set over the synthetic world. Eval clock is Monday 2026-10-05, so "this Friday" = 2026-10-09 unambiguously. |
+| [modelLab.js](src/labs/modelLab.js) | 54 | `scoreTurn`, `summarizeModel`, `runModelLab` | Five binary criteria per answer; an item passes only if all five pass. |
 
 ## src/llm
 

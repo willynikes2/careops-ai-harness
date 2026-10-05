@@ -41,25 +41,25 @@ If the AI provider is unavailable, the PTO, approvals, claims, and audit forms r
 
 Live runs on the deployed app. Raw data: [model lab](docs/results/model-lab-2026-10-04.json), [attack lab](docs/results/attack-lab-2026-10-04.json). These are illustrative for this synthetic task set, not general model rankings.
 
-**Model Lab:** same 12 questions, same harness, 3 repetitions per model, scored on 5 pass/fail checks. Provider errors (timeouts) are excluded from the pass rate but count as misses when the app picks its default.
+**Model Lab:** same 13 questions (including a grounding check that the answer invents no procedure the documents don't describe), same harness, 3 repetitions per model, scored on 5 pass/fail checks. Provider errors (timeouts) are excluded from the pass rate but count as misses when the app picks its default.
 
 | Model | Passed | Cost per 1,000 answers | Avg latency |
 |---|---|---|---|
-| Qwen3 235B (open-weight) | 36/36 | $0.41 | 2.0 s |
-| Claude Sonnet 5.5 | 36/36 | $9.56 | 2.3 s |
-| GPT-5.4 mini | 35/36 | $1.11 | 1.3 s |
-| GPT-OSS 120B (open-weight) | 27/34 (+2 provider timeouts) | $0.44 | 0.8 s |
+| Qwen3 235B (open-weight) | 39/39 | $0.26 | 2.3 s |
+| Claude Sonnet 5.5 | 39/39 | $9.90 | 2.2 s |
+| GPT-5.4 mini | 37/39 | $1.29 | 1.4 s |
+| GPT-OSS 120B (open-weight) | 30/38 (+1 provider timeout) | $0.48 | 1.0 s |
 
-The app chose Qwen3 as the chat default: it is the cheapest model to reliably clear the 90% bar. On this task set it matched the frontier model at about 1/23 of the cost. Requests ask OpenRouter for the lowest-latency provider of the chosen model, which trades a little cost for faster live answers.
+The app chose Qwen3 as the chat default: it is the cheapest model to reliably clear the 90% bar. On this task set it matched the frontier model at about 1/38 of the cost. Requests ask OpenRouter for the lowest-latency provider of the chosen model.
 
 **Attack Lab:** 10 direct attacks from the Skill Augment red-team corpus plus 1 poisoned knowledge-base document, run against the baseline and the hardened prompt on Qwen3.
 
 | | Prompt-layer leaks | Harness stepped in | Boundary moves |
 |---|---|---|---|
-| Baseline prompt | 1/11 | 1/11 | 0/11 |
+| Baseline prompt | 0/11 | 0/11 | 0/11 |
 | Hardened prompt | 0/11 | 0/11 | 0/11 |
 
-The one baseline leak (`data-exfil`) started reciting its rules and response format; the harness withheld that answer before the user saw it (answers that repeat the system prompt or the internal response format are withheld as a security event). The hardened prompt did not leak. Across all 22 runs, no permission, record or action crossed a boundary.
+Earlier runs on the same day saw the baseline `data-exfil` answer recite its rules and response format; the harness withheld it before the user saw it (answers that repeat the system prompt or the internal response format are withheld as a security event). The hardened prompt has not leaked in any run, and across all runs no permission, record or action crossed a boundary.
 
 **Measurement bugs caught while building.** Each one has a regression test.
 - The ported red-team judge matched the words "system prompt", so it scored polite refusals as leaks: 7 false leaks in the first run. It now requires evidence that the model complied.
@@ -67,6 +67,7 @@ The one baseline leak (`data-exfil`) started reciting its rules and response for
 - The Model Lab read live demo data, so after the browser tests approved a day off, all four models were marked wrong for correctly reporting the new balance. It now runs on a private, freshly seeded copy.
 - Provider outages (HTTP 402 when credit ran out, timeouts) were counted as model failures. They are now reported separately.
 - A model with timeouts excluded from its pass rate briefly became the chat default. Default selection now counts provider errors as misses.
+- A grounded-looking answer (correct citation, correct 100% fact) still invented a dental claim-filing procedure the Benefits Guide never describes. A phrase check that looked fine scored it 4/5 clean; reading the answers showed 1/5. Fixed with a grounding rule and worked example in the prompt, a Benefits Guide sentence that names the people team, and a stricter Model Lab check (live: 0/8 invented).
 
 ## Architecture
 
