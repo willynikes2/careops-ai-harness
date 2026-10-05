@@ -60,7 +60,7 @@ PORT=3999 DB_PATH=/tmp/careops-test/careops.db KB_URL=http://127.0.0.1:9 KB_API_
 ### 1.5 Existing automated suites (run first; both must be green)
 
 ```sh
-cd ~/careops-demo && npm test                                   # full unit/integration suite (175 as of 2026-10-05), no network
+cd ~/careops-demo && npm test                                   # full unit/integration suite (190 as of 2026-10-05), no network
 BASE_URL=https://careops.shawndemos.com npx playwright test   # 9-step live demo path (resets data; ~6 AI calls)
 ```
 
@@ -107,7 +107,7 @@ BASE_URL=https://careops.shawndemos.com npx playwright test   # 9-step live demo
 | ID | Steps | Expected |
 |---|---|---|
 | E-01 | Ask "What benefits do I have and how much PTO do I have left?" | Answer cites sources (chips e.g. PTO Policy / Benefits Guide); says **40** hours |
-| E-02 | Open **Why did this happen?** on E-01 | Decision summary: Authorization ALLOWED, Restricted retrieval "NOT EXECUTED — searched only careops-hr", Model received restricted data NO, Validation PASSED, Audit EVT-xxxxxx; 8 steps listed |
+| E-02 | Open **Why did this happen?** on E-01 | Decision summary: Authorization ALLOWED, Restricted retrieval "NONE — queried only careops-hr", Model received restricted data NO, Validation PASSED, Audit EVT-xxxxxx; 8 steps listed |
 | E-03 | Ask "How much PTO do I have, and can I take next Friday off?" | Mon–Thu: asks which Friday, offering only **bookable** dates (≥2 business days out). Fri–Sun: proposes the coming Friday directly |
 | E-04 | Choose a date → **Confirm** | "PTO request for YYYY-MM-DD submitted — status PENDING…"; trace updates to Execution SUCCESS + "PTO request pto_… created" + execution EVT id |
 | E-05 | My PTO | Balance: available 40, pending 8; request listed as Pending |

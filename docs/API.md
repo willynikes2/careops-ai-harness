@@ -54,7 +54,8 @@ AuditEvent  = { id: number, at: string, actorName: string|null, actorRole: strin
 | Method & path | Body | Response |
 |---|---|---|
 | `POST /api/chat` | `{message: string (1–2000 chars), model?: string}` | `200 ChatTurn` (policy denials are `200` with `status:"denied"`) · `429 rate_limited` |
-| `POST /api/actions/:id/confirm` | – | `200 {action: {id, tool, status: "EXECUTED"|"REJECTED", result: object, message: string}}` — repeat calls return the same body |
+| `POST /api/actions/:id/confirm` | – | `200 {action: {id, tool, status: "EXECUTED"|"REJECTED"|"CANCELLED"|"EXPIRED", result: object, message: string}}` — repeat calls return the same body; proposals expire after 30 minutes |
+| `POST /api/actions/:id/dismiss` | – | `200 {action: {id, tool, status: "CANCELLED", message}}`; `409` if already executed, cancelled or expired; `404` if not yours |
 | `GET /api/traces/:turnId` | – | `200 Trace` (own turns; admin: any) · `404` |
 | `GET /api/models` | – | `200 {default: string, models: {id, label, inPerM, outPerM}[]}` |
 

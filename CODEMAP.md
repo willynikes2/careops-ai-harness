@@ -8,7 +8,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [app.js](src/app.js) | 46 | `createApp` | — |
+| [app.js](src/app.js) | 48 | `createApp` | — |
 | [config.js](src/config.js) | 14 | `loadConfig` | — |
 | [main.js](src/main.js) | 15 | — | — |
 
@@ -16,7 +16,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [audit.js](src/audit/audit.js) | 26 | `createAudit` | Append-only audit trail + per-turn traces. Reset never deletes these. |
+| [audit.js](src/audit/audit.js) | 32 | `createAudit` | Append-only audit trail + per-turn traces. Reset never deletes these. |
 
 ## src/auth
 
@@ -30,7 +30,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [index.js](src/db/index.js) | 16 | `openDb` | forward-only migration for databases created before the decision summary existed |
+| [index.js](src/db/index.js) | 17 | `openDb` | forward-only migration for databases created before the decision summary existed |
 | [schema.sql](src/db/schema.sql) | 34 | — | — |
 | [seed.js](src/db/seed.js) | 25 | `seedDb` | Restores business data to a known state. Users are upserted (never deleted) so sessions survive; |
 
@@ -39,7 +39,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [claims.js](src/domain/claims.js) | 31 | `CLAIM_TRANSITIONS`, `TASK_KINDS`, `listAssignedClaims`, `getAssignedClaim`, `listTasks`, `createFollowup`, `transitionClaim` | Unassigned and nonexistent claims look identical to the caller: existence is not revealed. |
-| [idempotency.js](src/domain/idempotency.js) | 13 | `withIdempotency` | One business effect per client click: the first result is stored and replayed for the same key. |
+| [idempotency.js](src/domain/idempotency.js) | 21 | `withIdempotency` | One business effect per client click: the first result is stored and replayed for the same key — |
 | [pto.js](src/domain/pto.js) | 55 | `getPtoRequest`, `getBalance`, `listMyPto`, `listApprovals`, `ptoDateProblem`, `createPtoRequest`, `decidePtoRequest` | PTO Policy rules are enforced here, in code — not by the model. |
 
 ## src/harness
@@ -47,18 +47,19 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [context.js](src/harness/context.js) | 25 | `OUTPUT_CONTRACT`, `buildModelInput` | — |
+| [grounding.js](src/harness/grounding.js) | 49 | `canonicalText`, `unknownClaimIds`, `ungroundedQuantities` | Deterministic checks on what the user will read. Citations prove a document was supplied; these prove |
 | [leaks.js](src/harness/leaks.js) | 3 | `INTERNAL_FORMAT` | Internal response-format details that can only come from the system prompt / output contract. |
-| [pipeline.js](src/harness/pipeline.js) | 198 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
+| [pipeline.js](src/harness/pipeline.js) | 214 | `gatherFacts`, `getDefaultModel`, `createHarness` | Minimum necessary, scoped to this user: the only personal data the model will ever see. |
 | [prompts.js](src/harness/prompts.js) | 5 | `CANARY`, `loadPrompts` | A string that never appears in a legitimate answer; seeing it in output means the system prompt leaked. |
 | [trace.js](src/harness/trace.js) | 9 | `startTrace` | — |
-| [validate.js](src/harness/validate.js) | 29 | `validateTurn` | The model's output is a proposal. Every claim it makes that the app can check, the app checks. |
+| [validate.js](src/harness/validate.js) | 32 | `validateTurn` | The model's output is a proposal. The app checks what it can check deterministically: the contract, that cited |
 
 ## src/http
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [errors.js](src/http/errors.js) | 24 | `HttpError`, `errors`, `errorHandler` | body-parser errors (bad JSON, oversized body) are the client's fault, not a server error |
-| [middleware.js](src/http/middleware.js) | 21 | `asyncHandler`, `correlationId`, `parseBody`, `requireUser`, `requireRole` | Identity comes only from the server-side session; the client never asserts a role. |
+| [middleware.js](src/http/middleware.js) | 46 | `asyncHandler`, `correlationId`, `parseBody`, `requireUser`, `requireRole`, `auditDenials` | Identity comes only from the server-side session; the client never asserts a role. |
 
 ## src/labs
 
@@ -68,7 +69,7 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | [attacks.js](src/labs/attacks.js) | 39 | `ATTACKS`, `judgeLeak` | Direct attacks copied verbatim from ~/skill-augment/validation/red-team-test.sh (Skill Augment red-team corpus). |
 | [chooseDefault.js](src/labs/chooseDefault.js) | 6 | `chooseDefault` | Selection counts provider errors as misses (reported pass rates exclude them): the chat default must answer reliably. |
 | [evalSet.js](src/labs/evalSet.js) | 19 | `EVAL_NOW`, `EVAL_ITEMS` | Fixed eval set over the synthetic world. Eval clock is Monday 2026-10-05, so "this Friday" = 2026-10-09 unambiguously. |
-| [modelLab.js](src/labs/modelLab.js) | 54 | `scoreTurn`, `summarizeModel`, `runModelLab` | Five binary criteria per answer; an item passes only if all five pass. |
+| [modelLab.js](src/labs/modelLab.js) | 63 | `scoreTurn`, `summarizeModel`, `runModelLab` | Five binary criteria per answer; an item passes only if all five pass. |
 
 ## src/llm
 
@@ -99,8 +100,8 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [admin.js](src/routes/admin.js) | 14 | `adminRoutes` | — |
-| [chat.js](src/routes/chat.js) | 32 | `chatRoutes` | Withheld model output is visible only to compliance (admin); the turn's owner sees why, not what. |
-| [claims.js](src/routes/claims.js) | 39 | `claimRoutes` | — |
+| [chat.js](src/routes/chat.js) | 33 | `chatRoutes` | Withheld model output is visible only to compliance (admin); the turn's owner sees why, not what. |
+| [claims.js](src/routes/claims.js) | 40 | `claimRoutes` | — |
 | [health.js](src/routes/health.js) | 20 | `healthRoutes` | — |
 | [labs.js](src/routes/labs.js) | 34 | `labRoutes` | One lab run at a time: runs take minutes and spend money. |
 | [pto.js](src/routes/pto.js) | 33 | `ptoRoutes` | — |
@@ -109,13 +110,13 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow and [docs/API
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
-| [actions.js](src/tools/actions.js) | 34 | `proposeAction`, `confirmAction` | — |
-| [registry.js](src/tools/registry.js) | 45 | `TOOLS`, `getTool`, `allowedToolsFor`, `validateProposal` | The ONLY operations a model can propose. Each is narrow, schema-checked, re-authorized at execution, and idempotent via pending_actions. |
+| [actions.js](src/tools/actions.js) | 68 | `proposeAction`, `PROPOSAL_TTL_MS`, `dismissAction`, `confirmAction` | Ends a proposal without running it; later confirms replay this outcome. Recorded as a security event. |
+| [registry.js](src/tools/registry.js) | 46 | `TOOLS`, `getTool`, `allowedToolsFor`, `validateProposal` | The ONLY operations a model can propose. Each is narrow, schema-checked, re-authorized at execution, and idempotent via pending_actions. |
 
 ## src/util
 
 | File | Lines | Exports | First comment |
 | --- | ---: | --- | --- |
 | [clock.js](src/util/clock.js) | 4 | `systemClock`, `fixedClock`, `nyDate` | — |
-| [dates.js](src/util/dates.js) | 26 | `addDays`, `dow`, `isWeekend`, `addBusinessDays`, `businessDaysUntil`, `formatDate`, `resolvePtoDate` | Deterministic date resolution: the model never decides which calendar day a phrase means. |
+| [dates.js](src/util/dates.js) | 34 | `addDays`, `dow`, `isWeekend`, `addBusinessDays`, `businessDaysUntil`, `formatDate`, `requestedHours`, `resolvePtoDate` | Hours the user stated ("for 4 hours", "half day"), or null — parsed in code so a clarification cannot drop them. |
 | [ids.js](src/util/ids.js) | 2 | `newId` | — |

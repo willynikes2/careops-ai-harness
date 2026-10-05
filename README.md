@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/willynikes2/careops-ai-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/willynikes2/careops-ai-harness/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-careops.shawndemos.com-0b7a5b)](https://careops.shawndemos.com)
-![Tests](https://img.shields.io/badge/tests-175%20passing-0b7a5b)
+![Tests](https://img.shields.io/badge/tests-190%20passing-0b7a5b)
 ![Node](https://img.shields.io/badge/node-22-339933)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -46,12 +46,12 @@ Prefer a guided path? See the [five-minute walkthrough](#five-minute-walkthrough
 ## What this demonstrates
 
 - **Authorization before retrieval.** A request the role can't make is denied before any record or document is fetched, so restricted data never reaches the model.
-- **Grounded, cited answers.** Balances and claims come from the database; policy comes from a role-scoped knowledge base. Citations, record IDs and protected text are checked before an answer is shown.
-- **Proposals, not actions.** The model can only *propose* one of two narrow tools. Code validates the arguments, re-checks permission, and executes only after the user clicks **Confirm** — idempotently, so double-clicks and retries never duplicate work.
+- **Grounded, cited answers.** Balances and claims come from the database; policy comes from a role-scoped knowledge base. Before an answer is shown, code checks that cited sources were supplied, that every claim ID and every number with a unit (hours, %, $, days) appears in the user's records or the documents, and that no protected prompt text leaks. Unsupported non-numeric prose is constrained by the prompt, not proven.
+- **Proposals, not actions.** The model can only *propose* one of two narrow tools. Code validates the arguments (including the date and hours the user asked for), re-checks permission, and executes only after the user clicks **Confirm** — idempotently, so double-clicks and retries never duplicate work. **Dismiss** cancels the proposal on the server, and proposals expire after 30 minutes.
 - **Deterministic where it matters.** Dates, PTO rules and the claim state machine (DENIED → PAID is rejected) are plain code, not model judgment.
 - **Model-agnostic.** One provider interface; the Model Lab shows an open-weight model matching a frontier model on this task set at a fraction of the cost.
 - **Resilient.** If the AI provider fails, times out or the budget runs out, nothing changes and the rest of the app keeps working. `/ready` reports the degraded state.
-- **Auditable.** Each turn stores an 8-step trace and a plain-English decision summary with audit event IDs (`EVT-000123`).
+- **Auditable.** Each turn stores an 8-step trace and a plain-English decision summary with audit event IDs (`EVT-000123`); later confirmations or cancellations are appended, not overwritten. Refused API requests (wrong role, missing CSRF token, someone else's record) are recorded as security events too.
 
 ## How it works
 
@@ -73,20 +73,20 @@ Retrieved documents are fenced as untrusted data; the planted injection bulletin
 
 ## Recorded results
 
-Live runs on the deployed app. Raw data: [model lab](docs/results/model-lab-2026-10-04.json), [attack lab](docs/results/attack-lab-2026-10-04.json). Illustrative for this synthetic task set — not general model rankings.
+Live runs on the deployed app. Raw data, including every scored answer: [model lab](docs/results/model-lab-2026-10-05.json), [attack lab](docs/results/attack-lab-2026-10-05.json). The Model Lab page lets you read each answer next to its score. Illustrative for this synthetic task set — not general model rankings.
 
 **Model Lab** — 13 questions × 3 repetitions per model, 5 pass/fail checks each (valid JSON, real citations, no invented record IDs, the right action, the right fact — and no invented procedures).
 
 | Model | Passed | Cost per 1,000 answers | Avg latency |
 |---|---|---|---|
-| Qwen3 235B (open-weight) — **chosen default** | 39/39 | $0.26 | 2.3 s |
-| Claude Sonnet 5.5 | 39/39 | $9.90 | 2.2 s |
-| GPT-5.4 mini | 37/39 | $1.29 | 1.4 s |
-| GPT-OSS 120B (open-weight) | 30/38 (+1 provider timeout) | $0.48 | 1.0 s |
+| Qwen3 235B (open-weight) — **chosen default** | 39/39 | $0.76 | 2.1 s |
+| Claude Sonnet 5.5 | 39/39 | $10.18 | 2.4 s |
+| GPT-5.4 mini | 38/39 | $1.00 | 1.2 s |
+| GPT-OSS 120B (open-weight) | 35/36 (+3 provider timeouts) | $0.45 | 1.2 s |
 
-The app picks the cheapest model that reliably clears 90% (provider errors count as misses). On this task set the open-weight model matched the frontier model at about **1/38 of the cost**.
+The app picks the cheapest model that reliably clears 90% (provider errors count as misses, which is why GPT-OSS was not chosen). On this task set the open-weight model matched the frontier model at roughly **1/13 of the cost**. Its measured cost varies with the provider OpenRouter routes to: $0.26–$0.76 per 1,000 answers across runs on Oct 4–5.
 
-**Attack Lab** — 10 direct attacks from a red-team corpus plus 1 poisoned knowledge-base document, against a baseline and a hardened system prompt. Latest run: **0 prompt leaks and 0 boundary moves** on both. In earlier runs the baseline prompt occasionally recited its own rules; the harness withheld those answers before a user saw them. Across every run, no permission, record or action crossed a boundary.
+**Attack Lab** — 10 direct attacks from a red-team corpus plus 1 poisoned knowledge-base document, against a baseline and a hardened system prompt. Latest run: the baseline prompt leaked once (it recited its own response format) and the harness withheld that answer before a user saw it; the hardened prompt leaked 0/11; **0 boundary moves**. Across every run, no permission, record or action crossed a boundary. The Attack Lab does not exercise confirmation, so confirmation ownership, cancellation and expiry are covered by their own tests.
 
 ### Measurement bugs caught along the way
 
@@ -96,6 +96,7 @@ Honest evals were part of the work. Each of these has a regression test:
 - The same judge missed a real leak (a model reciting its response format). It now checks for that, and the server withholds such answers.
 - The Model Lab read live demo data, so after the browser tests approved a day off, every model was marked wrong for reporting the new balance. Evals now run on a private seeded copy.
 - Provider outages (HTTP 402 when credit ran out, timeouts) were scored as model failures; they're now reported separately.
+- Two scoring bugs were found by reading stored answers: GPT-OSS writes "2 business days" with a narrow no-break space (U+202F), so a plain text match failed correct answers; and a banned-phrase list ("submit your") failed a correctly grounded answer. Scoring now normalizes Unicode, and each case has a test.
 - A grounded-looking answer (right citation, right fact) still invented a claim-filing procedure. A phrase check said 4/5 clean; reading the answers showed 1/5. Fixed with a prompt rule and worked example, a knowledge-base sentence, and a stricter eval item — live re-check 0/8.
 
 ## Five-minute walkthrough
@@ -116,6 +117,7 @@ Built in about two days with AI coding agents under a human-owned spec, plan and
 - **Spec → plan → test-first implementation.** The [design spec](docs/superpowers/specs/2026-10-03-careops-design.md) and [implementation plan](docs/superpowers/plans/2026-10-03-careops-demo.md) came first; every backend behavior has a failing test before code. [AGENTS.md](AGENTS.md) holds the rules every coding agent follows.
 - **Parallel agents.** Claude Code built the backend, harness and tests; OpenAI Codex built the front end and knowledge documents against a frozen [API contract](docs/API.md), then the work was reviewed and merged.
 - **Independent review and testing.** A fresh reviewer audited the whole branch; Grok and Codex then ran the full [browser + stress test plan](docs/TEST_PLAN.md) (99 test IDs) against the live site twice. Their findings were fixed test-first; the second pass found no P0/P1 issues.
+- **Hostile technical review.** A separate reviewer (ChatGPT, acting as a skeptical interviewer) found no critical issues but 3 P1 and 6 P2 weaknesses: replayed request keys, a dropped PTO-hours parameter, unaudited REST denials, look-alike claim IDs, false numbers passing with valid citations, dismiss not cancelling, trace fields set by default, and Model Lab scores without stored evidence. Each was reproduced, fixed test-first, and re-checked against the live site.
 - **Live verification.** A Playwright suite drives the nine-step demo path against the deployed app, and the labs measure real model behavior and cost.
 
 ## Run it locally
@@ -126,7 +128,7 @@ Requires Node.js 22+. The front end has no build step.
 git clone https://github.com/willynikes2/careops-ai-harness.git
 cd careops-ai-harness
 npm ci
-npm test                      # 175 unit/integration tests — no network, no API keys
+npm test                      # 190 unit/integration tests — no network, no API keys
 ```
 
 **Workflows only (no AI):** start the server without a knowledge base or model key — PTO, approvals, claims, audit and reset all work; the assistant reports itself unavailable.
@@ -160,7 +162,7 @@ node --env-file=.env src/main.js
 
 | Suite | Command | What it covers |
 |---|---|---|
-| Unit / integration | `npm test` | 175 tests: auth, policy matrix, retrieval scoping, PTO rules, claim state machine, tool validation, idempotency, provider failures, injection, grounding, labs |
+| Unit / integration | `npm test` | 190 tests: auth, policy matrix, retrieval scoping, PTO rules, claim state machine, tool validation, idempotency, provider failures, injection, grounding, labs |
 | Live demo path | `BASE_URL=https://careops.shawndemos.com npm run e2e` | The nine-step walkthrough in a real browser (resets demo data) |
 | Retry safety | `e2e/retry.spec.js` against a local server | A dropped connection plus retry creates exactly one record |
 
@@ -193,7 +195,8 @@ A generated file-by-file map is in [CODEMAP.md](CODEMAP.md).
 - OpenRouter is a demo provider. Production use with PHI would require an approved provider under a BAA and the wider controls described in [SECURITY.md](SECURITY.md).
 - Shared demo accounts and a reset button serve a demonstration, not tenant isolation or enterprise identity.
 - Lab samples are small and task-specific; neither lab proves general safety or quality.
-- Citation and record-ID checks verify that sources were supplied, not that every sentence is supported; known grounding gaps are tracked as Model Lab items.
+- Citation checks verify that sources were supplied, not that every sentence is supported. Record IDs and unit-bearing numbers are checked against the supplied context; other prose is not, and known grounding gaps are tracked as Model Lab items.
+- The defensible claim is: *the model cannot expand its permissions or execute arbitrary tools; deterministic server code scopes context and controls confirmed business writes.* The labs do not prove universal safety.
 - The budget check uses recorded costs, not reservations for in-flight requests; set a provider-side spending limit too.
 
 ## License
