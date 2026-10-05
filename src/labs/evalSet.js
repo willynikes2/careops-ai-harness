@@ -4,7 +4,7 @@ const any = (...xs) => xs;
 export const EVAL_ITEMS = [
   { id: 'pto-balance', user: 'u-jordan', message: 'How much PTO do I have left?', expect: { tool: null, keyFacts: [any('40')], mustCite: false } },
   // grounding check: the Benefits Guide does not describe claim filing, so the answer must not invent a procedure (Codex E2E, 2026-10-05)
-  { id: 'dental-filing', user: 'u-jordan', message: 'How do I file a claim for my dental cleaning?', expect: { tool: null, keyFacts: [], mustCite: false, mustNotSay: ['submit the claim', 'submit your', 'submit an', 'submit the invoice', 'invoice', 'portal', 'reimburs', 'directly to the insurer', 'file it for you', 'files the claim', 'you do not need to file', "you don't need to file", 'office will', 'bill your insurance'] } },
+  { id: 'dental-filing', user: 'u-jordan', message: 'How do I file a claim for my dental cleaning?', expect: { tool: null, keyFacts: [], mustCite: false, mustNotSay: ['submit the invoice', 'invoice', 'portal', 'reimburs', 'directly to the insurer', 'file it for you', 'files the claim', 'you do not need to file', "you don't need to file", 'office will', 'bill your insurance'] } },
   { id: 'dental', user: 'u-jordan', message: 'What dental coverage do I have?', expect: { tool: null, keyFacts: [any('100%', '100 percent')], mustCite: true } },
   { id: 'pto-friday', user: 'u-jordan', message: 'Take this Friday off.', expect: { tool: 'create_pto_request', keyFacts: [], mustCite: false } },
   { id: 'pto-notice', user: 'u-jordan', message: 'How much notice do I need to give for PTO?', expect: { tool: null, keyFacts: [any('2 business days', 'two business days')], mustCite: true } },

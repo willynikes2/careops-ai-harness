@@ -68,6 +68,26 @@ export function attackLab(root, ctx) {
   });
 }
 
+// Every stored answer with its sources, action and validation result, so a reviewer can check each score.
+function evidence(result, criteria) {
+  const rows = (result.rows ?? []).filter(r => 'answer' in r);
+  if (!rows.length) return el('p', { class: 'small muted' }, 'This stored run predates per-answer evidence. Run the lab again to record each answer.');
+  const section = el('section', { class: 'card' }, el('h2', {}, 'Inspect the answers'), el('p', { class: 'small muted' }, 'Each scored attempt, exactly as the harness returned it. Checks are deterministic: they confirm the expected words, sources and action are present; they do not prove every sentence is true.'));
+  for (const model of result.models) {
+    const mine = rows.filter(r => r.model === model.id);
+    const list = el('div', { class: 'evidence-list' });
+    for (const r of mine) {
+      const verdict = r.infraError ? 'Provider error (not scored)' : r.pass ? 'Passed' : `Failed: ${r.failed.map(f => criteria[f] ?? f).join(', ')}`;
+      list.append(el('article', { class: 'evidence-item' },
+        el('p', {}, el('strong', {}, `${r.question}`), ' ', pill(r.infraError ? 'pending' : r.pass ? 'approved' : 'denied', verdict), el('span', { class: 'small muted' }, ` · run ${r.rep}`)),
+        el('p', { class: 'preserve-lines' }, r.answer || '(no answer)'),
+        el('p', { class: 'small muted' }, `Sources: ${r.sources.length ? r.sources.join(', ') : 'none'} · Action: ${r.proposedAction ?? 'none'} · Validation: ${r.validation}`)));
+    }
+    section.append(el('details', { class: 'evidence-model' }, el('summary', {}, `${model.label} — ${mine.length} answers`), list));
+  }
+  return section;
+}
+
 export function modelLab(root, ctx) {
   lab(root, ctx, {
     title: 'Model Lab', endpoint: 'models',
@@ -89,6 +109,7 @@ export function modelLab(root, ctx) {
       content.append(el('section', { class: 'card model-table' }, result.models.length ? grid.node : empty('This run contains no model results.')),
         el('p', { class: 'small muted' }, 'Errors mean an answer could not be obtained, for example during a provider outage or when the budget runs out. They are excluded from pass rates, costs, and latency averages. No scored answers means quality and cost are not measured.'),
         el('p', { class: 'small muted' }, `${result.items} questions × ${result.reps} repetitions = ${result.items * result.reps} attempts per model · ${timestamp(result.at)}.`),
+        evidence(result, criteria),
         el('p', { class: 'small muted' }, 'Illustrative for this task set — not a general model ranking. Costs and latency are measured for this run.'));
       return content;
     },

@@ -97,3 +97,29 @@ test('the chat default is recomputed from stored results with the current rule',
   const dana = await app.login('dana');
   assert.equal((await dana.call('/api/labs/models')).body.defaultModel, 'qwen/qwen3-235b-a22b-2507');
 });
+test('each scored answer is kept with its evidence so a reviewer can check the score', async (t) => {
+  const provider = new FakeProvider(() => ({ answer: 'A full day of PTO is 8 hours.', citations: ['1'] }));
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('dana');
+  await call('/api/labs/models/run', { method: 'POST' });
+  const stored = (await call('/api/labs/models')).body;
+  assert.equal(stored.scoringVersion, 2);
+  const row = stored.rows[0];
+  assert.equal(row.answer, 'A full day of PTO is 8 hours.');
+  assert.ok(Array.isArray(row.sources)); assert.equal(typeof row.status, 'string');
+  assert.equal(typeof row.validation, 'string'); assert.ok('proposedAction' in row);
+  assert.ok(row.criteria && typeof row.criteria.key_fact === 'boolean', 'per-criterion results are kept');
+});
+test('key facts match through Unicode spacing and hyphen variants (found by reading stored answers)', () => {
+  const item = EVAL_ITEMS.find(i => i.id === 'pto-notice');
+  const answer = 'You need to give at least 2 business days notice (PTO Policy §2).';
+  const r = scoreTurn(item, { status: 'answered', answer, citations: [{ docId: '1' }], proposedAction: null, _raw: JSON.stringify({ answer, citations: ['1'] }) });
+  assert.equal(r.criteria.key_fact, true);
+});
+test('dental-filing: deferring to the people team is grounded, even when it says "submit your claim"', () => {
+  const item = EVAL_ITEMS.find(i => i.id === 'dental-filing');
+  const turn = (answer) => ({ status: 'answered', answer, citations: [{ docId: '2' }], proposedAction: null, _raw: JSON.stringify({ answer, citations: ['2'] }) });
+  const ok = "Dental cleanings are covered at 100% (Employee Benefits Guide 2026 §2). The guide does not describe the process for filing a claim, so you'll need to check with the people team for the specific steps to submit your dental cleaning claim.";
+  assert.equal(scoreTurn(item, turn(ok)).criteria.key_fact, true);
+  assert.equal(scoreTurn(item, turn('Cleanings are covered at 100%. Your dental office will submit the claim for you.')).criteria.key_fact, false);
+});
