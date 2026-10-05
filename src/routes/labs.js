@@ -6,7 +6,7 @@ import { runModelLab } from '../labs/modelLab.js';
 import { getDefaultModel } from '../harness/pipeline.js';
 
 const stored = (db, lab) => { const r = db.prepare('SELECT results_json FROM lab_results WHERE lab = ?').get(lab); return r ? JSON.parse(r.results_json) : null; };
-export function labRoutes({ db, kb, provider, prompts, harness, budget, config, audit }) {
+export function labRoutes({ db, kb, provider, prompts, harness, budget, config, audit, clock }) {
   const r = Router();
   r.use('/labs', requireRole('admin'));
   // One lab run at a time: runs take minutes and spend money.
@@ -19,7 +19,7 @@ export function labRoutes({ db, kb, provider, prompts, harness, budget, config, 
   r.get('/labs/attacks', (req, res, next) => { const s = stored(db, 'attacks'); return s ? res.json(s) : next(errors.notFound('No Attack Lab run recorded yet.')); });
   r.post('/labs/attacks/run', exclusive('Attack', async (req, res) => {
     if (budget.remaining() < 0.25) throw errors.aiUnavailable('Daily AI budget too low to run the Attack Lab.');
-    const out = await runAttackLab({ db, harness, model: getDefaultModel(db, config) });
+    const out = await runAttackLab({ db, harness, model: getDefaultModel(db, config), audit, clock });
     audit.event({ actor: req.user, kind: 'lab_run', detail: { lab: 'attacks', summary: out.summary } });
     res.json(out);
   }));

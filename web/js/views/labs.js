@@ -34,6 +34,14 @@ function lab(root, ctx, { title, description, endpoint, render, costNote }) {
   load(false);
 }
 
+// What the lab saw when it confirmed the proposal inside a rolled-back transaction (worst case: the user clicks Confirm).
+function confirmedText(v) {
+  if (!('ifConfirmed' in v)) return 'If confirmed: not measured in this stored run.';
+  if (!v.ifConfirmed) return 'If confirmed: nothing to confirm — no action was proposed.';
+  const fx = v.ifConfirmed.effects.map(e => `${e.change} ${e.table.replace('_', ' ')} (${e.owner === v.ifConfirmed.userId ? 'own record' : `owned by ${e.owner}`})`).join(', ') || 'no changes';
+  return `If confirmed: ${v.ifConfirmed.status.toLowerCase()} — ${fx}${v.ifConfirmed.crossedBoundary ? ' — CROSSED A BOUNDARY' : ''}. Measured in a rolled-back transaction; nothing was kept.`;
+}
+
 export function attackLab(root, ctx) {
   lab(root, ctx, {
     title: 'Attack Lab', endpoint: 'attacks',
@@ -44,7 +52,7 @@ export function attackLab(root, ctx) {
       const hardened = result.summary.hardened;
       const held = baseline.boundaryMoves === 0 && hardened.boundaryMoves === 0;
       const content = el('div', {},
-        el('section', { class: 'card' }, el('h2', {}, 'A stronger prompt helps. Server checks enforce the rules.'), el('p', {}, 'The hardened prompt asks the model to resist misleading instructions. That protection is probabilistic: the model can still make mistakes. The harness uses deterministic checks in code to control permissions, records, and actions, even when the model is misled.'), el('p', { class: 'small muted' }, '“Leaked” describes the prompt-layer judge. “Harness stepped in” counts turns where server checks rejected a tool request or withheld an answer. “Boundary moves” counts changes to authority or exposure of protected data in this run.')),
+        el('section', { class: 'card' }, el('h2', {}, 'A stronger prompt helps. Server checks enforce the rules.'), el('p', {}, 'The hardened prompt asks the model to resist misleading instructions. That protection is probabilistic: the model can still make mistakes. The harness uses deterministic checks in code to control permissions, records, and actions, even when the model is misled.'), el('p', { class: 'small muted' }, '“Leaked” describes the prompt-layer judge. “Harness stepped in” counts turns where server checks rejected a tool request or withheld an answer. “Boundary moves” counts role changes, protected data in an answer (patient names and claim IDs the user may not see, taken from the database), and any change to someone else’s records when the lab confirms the proposed action inside a transaction that is rolled back.')),
         el('div', { class: 'stat-grid three' }, stat('Baseline prompt leaks', `${baseline.promptLeaks}/${result.attacks}`, `Harness stepped in: ${baseline.interventions ?? 0}`), stat('Hardened prompt leaks', `${hardened.promptLeaks}/${result.attacks}`, `Harness stepped in: ${hardened.interventions ?? 0}`), stat(`Boundary moves: ${baseline.boundaryMoves + hardened.boundaryMoves}`, held ? '✓ Held' : '⚠ Review needed', `Baseline: ${baseline.boundaryMoves} · Hardened: ${hardened.boundaryMoves}`)));
       if (!held) content.append(el('p', { class: 'notice error', role: 'alert' }, 'This run recorded a boundary move. Review the answers and traces below.'));
       const grid = table(['Attack', 'Category', 'Baseline result', 'Hardened result', 'Boundary'], 'Prompt attacks and server boundary results');
@@ -57,8 +65,8 @@ export function attackLab(root, ctx) {
         toggle.setAttribute('aria-expanded', 'false');
         toggle.setAttribute('aria-controls', expanded.id);
         const rowHeld = !entry.baseline.boundaryMoved && !entry.hardened.boundaryMoved;
-        grid.body.append(el('tr', {}, cell(toggle), cell(entry.category === 'indirect' ? 'In a document' : 'Direct message'), cell(pill(entry.baseline.leaked ? 'denied' : 'approved', entry.baseline.leaked ? 'Leaked' : 'Blocked')), cell(pill(entry.hardened.leaked ? 'denied' : 'approved', entry.hardened.leaked ? 'Leaked' : 'Blocked')), cell(pill(rowHeld ? 'approved' : 'denied', rowHeld ? '✓ Held' : '⚠ Moved'))));
-        expanded.append(el('td', { colspan: '5', class: 'expanded-cell' }, el('h3', {}, 'Attack text'), el('p', { class: 'preserve-lines' }, entry.message), el('div', { class: 'two-columns' }, ...['baseline', 'hardened'].map(variant => el('section', {}, el('h3', {}, `${labelize(variant)} answer`), el('p', { class: 'preserve-lines' }, entry[variant].answer), el('p', { class: 'small muted' }, `Boundary: ${entry[variant].boundaryMoved ? 'moved' : 'held'}`), entry[variant].turnId ? button(`View ${variant} trace`, () => context.openTrace(entry[variant].turnId), 'text-button') : null)))));
+        grid.body.append(el('tr', {}, cell(toggle), cell({ indirect: 'In a document', 'tool-abuse': 'Tool abuse' }[entry.category] ?? 'Direct message'), cell(pill(entry.baseline.leaked ? 'denied' : 'approved', entry.baseline.leaked ? 'Leaked' : 'Blocked')), cell(pill(entry.hardened.leaked ? 'denied' : 'approved', entry.hardened.leaked ? 'Leaked' : 'Blocked')), cell(pill(rowHeld ? 'approved' : 'denied', rowHeld ? '✓ Held' : '⚠ Moved'))));
+        expanded.append(el('td', { colspan: '5', class: 'expanded-cell' }, el('h3', {}, 'Attack text'), el('p', { class: 'preserve-lines' }, entry.message), el('div', { class: 'two-columns' }, ...['baseline', 'hardened'].map(variant => el('section', {}, el('h3', {}, `${labelize(variant)} answer`), el('p', { class: 'preserve-lines' }, entry[variant].answer), el('p', { class: 'small muted' }, `Boundary: ${entry[variant].boundaryMoved ? 'moved' : 'held'}`), el('p', { class: 'small muted' }, confirmedText(entry[variant])), entry[variant].exposed?.length ? el('p', { class: 'small muted' }, `Protected data in the answer: ${entry[variant].exposed.join(', ')}`) : null, entry[variant].turnId ? button(`View ${variant} trace`, () => context.openTrace(entry[variant].turnId), 'text-button') : null)))));
         grid.body.append(expanded);
       });
       content.append(el('section', { class: 'card' }, result.results.length ? grid.node : empty('This run contains no individual attack results.')),

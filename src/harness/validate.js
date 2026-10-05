@@ -2,7 +2,7 @@ import { parseModelOutput } from '../llm/contract.js';
 import { validateProposal } from '../tools/registry.js';
 import { CANARY } from './prompts.js';
 import { INTERNAL_FORMAT } from './leaks.js';
-import { unknownClaimIds, ungroundedQuantities, claimComparisonProblems, ungroundedDates } from './grounding.js';
+import { unknownClaimIds, ungroundedQuantities, claimComparisonProblems, ungroundedDates, recordMismatches } from './grounding.js';
 
 // The model's output is a proposal. The app checks what it can check deterministically: the contract, that cited
 // sources were supplied, record IDs, numbers, protected text and tool requests. It does not verify prose entailment.
@@ -26,11 +26,13 @@ export function validateTurn({ text, docs, facts, user, intent, message = '', to
   if (ungrounded.length) return { ok: false, reason: `stated numbers not supported by the records or documents (${ungrounded.join(', ')})` };
   const comparisons = claimComparisonProblems(shown, facts);
   if (comparisons.length) return { ok: false, reason: `stated a claim threshold the record contradicts (${comparisons.join('; ')})` };
+  const mismatches = recordMismatches(shown, { facts, docs });
+  if (mismatches.length) return { ok: false, reason: `contradicts the records (${mismatches.join('; ')})` };
   const dates = ungroundedDates(shown, { facts, docs, today });
   if (dates.length) return { ok: false, reason: `stated dates not found in the records or documents (${dates.join(', ')})` };
   const p = validateProposal({ proposal: data.proposed_action, user, intent, facts, message });
   const citations = [...new Set(data.citations)].map(id => ({ docId: id, title: docs.find(d => d.id === id).title }));
-  const summary = ['JSON contract ✓', `${citations.length} source ID(s) recognized · numbers and dates match a record or document value (same unit) ✓`, 'record IDs ✓',
+  const summary = ['JSON contract ✓', `${citations.length} source ID(s) recognized · numbers, dates and statuses match the records or documents ✓`, 'record IDs ✓',
     data.proposed_action ? (p.ok ? `tool "${data.proposed_action.tool}" allowed` : `tool request REJECTED: ${p.reason}`) : 'no tool requested'].join(' · ');
   return { ok: true, data, citations, action: p.ok ? p.action : null, actionRejection: p.ok ? null : p.reason, notOffered: p.notOffered ?? null, summary };
 }

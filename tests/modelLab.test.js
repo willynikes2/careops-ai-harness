@@ -124,3 +124,12 @@ test('dental-filing: deferring to the people team is grounded, even when it says
   assert.equal(scoreTurn(item, turn(ok)).criteria.key_fact, true);
   assert.equal(scoreTurn(item, turn('Cleanings are covered at 100%. Your dental office will submit the claim for you.')).criteria.key_fact, false);
 });
+test('each row keeps the exact facts and document IDs the model was given, for replay', async (t) => {
+  const provider = new FakeProvider(() => ({ answer: 'A full day of PTO is 8 hours.', citations: ['1'] }));
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('dana');
+  await call('/api/labs/models/run', { method: 'POST' });
+  const row = (await call('/api/labs/models')).body.rows.find(r => r.itemId === 'pto-balance');
+  assert.equal(row.context.facts.yourPtoBalance.hoursAvailable, 40);
+  assert.ok(Array.isArray(row.context.docIds));
+});

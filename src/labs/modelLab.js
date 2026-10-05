@@ -50,10 +50,13 @@ export async function runModelLab({ db, kb, provider, audit, budget, prompts, co
       const turn = await harness.runTurn({ user: userById(evalDb, item.user), message: item.message, model: m.id, purpose: 'lab' });
       const s = scoreTurn(item, turn);
       // The evidence behind each score survives the private eval database: answer, sources, action and validation result.
-      const decision = evalAudit.getTrace(turn.turnId)?.decision ?? {};
+      const trace = evalAudit.getTrace(turn.turnId);
+      const decision = trace?.decision ?? {};
+      const step = (name) => trace?.steps.find(x => x.name === name)?.detail ?? {};
       rows.push({ itemId: item.id, question: item.message, model: m.id, rep, pass: s.pass, failed: s.failed, criteria: s.criteria, infraError: s.infraError,
         costUsd: turn.costUsd, latencyMs: turn.latencyMs, status: turn.status, answer: String(turn.answer ?? '').slice(0, 1500),
-        sources: turn.citations.map(c => c.title), proposedAction: turn.proposedAction?.summary ?? null, validation: decision.validation ?? 'NOT RUN' });
+        sources: turn.citations.map(c => c.title), proposedAction: turn.proposedAction?.summary ?? null, validation: decision.validation ?? 'NOT RUN',
+        context: { facts: step('state').facts ?? {}, docIds: (step('retrieval').docs ?? []).map(d => d.id) } });
     }
   } finally { evalDb.close(); }
   const models = MODELS.map(m => summarizeModel(m, rows));

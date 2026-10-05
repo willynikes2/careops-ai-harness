@@ -23,7 +23,7 @@ export function unknownClaimIds(text, knownIds) {
 }
 
 const num = (s) => Number(String(s).replace(/,/g, ''));
-const DIGITS = '\\d[\\d,]*(?:\\.\\d+)?';
+const DIGITS = '\\d(?:[\\d,]*\\d)?(?:\\.\\d+)?';
 // Units stay distinct: "2 business days" never supports "2 years", and counts never stand in for durations.
 const UNIT = '(%|percent\\b|dollars?\\b|usd\\b|hours?\\b|hrs?\\b|h\\b|business days?\\b|days?\\b|weeks?\\b|months?\\b|years?\\b|sessions?\\b|visits?\\b)';
 const QUANTITY = new RegExp(`(?:\\$|\\busd\\s?)\\s?(${DIGITS})|(?:\\b(${DIGITS})|\\b(${NUMBER_WORDS}))[\\s-]?${UNIT}`, 'gi');
@@ -47,36 +47,92 @@ export function quantities(text) {
   return out;
 }
 
-// Authoritative values by unit: the user's own records (typed by field name) and what the documents state.
-// The user's message is NOT evidence — a number the user asserted proves nothing.
+// Topic words: each value carries the content words of the sentence (or record field) it came from, and an
+// answer's number must share at least one with its own sentence. That binds "40 hours" to carryover, not to notice.
+const STOP = new Set('the a an is are was were be been to of in on for and or at by with your you we it its this that these those as from has had will would can could may might should must not no do does any all each than then so if into about our their there here also only just more most other such per up out over under what which who how when'.split(' '));
+const GENERIC = new Set(['pto', 'policy', 'paid', 'time', 'hour', 'hours', 'day', 'days', 'business', 'claim', 'claims', 'employee', 'employees', 'staff', 'careops', 'guide', 'manual', 'sop', 'section', 'full-time', 'plan']);
+const stem = (w) => { if (/\d/.test(w)) return w; const x = w.replace(/'s$/, '').replace(/(ing|ed|es|s)$/, ''); return (x.length >= 5 ? x.slice(0, 5) : x) || w; }; // IDs like clm-1004 stay whole
+// Generic domain words ("claim", "policy", "hours") are dropped from document sentences, where they would
+// license any value; in the answer they are kept, so "the claim is $3,250" can bind to the claim's own amount.
+export function topicWords(text, { generic = true } = {}) {
+  return new Set((String(text).toLowerCase().match(/[a-z][a-z0-9'-]*[a-z0-9]|[a-z]/g) ?? []).filter(w => !STOP.has(w) && (!generic || !GENERIC.has(w)) && w.length > 1).map(stem));
+}
+const sentences = (text) => canonicalText(text).replace(/§\s*[\d.]+/g, '').split(/(?<=[.!?;:])\s+|\n+/).filter(x => x.trim());
+// What each typed record field is about, in the words people use for it.
+const FIELD_TOPICS = [
+  [/^hours(Available|Requestable)$/, 'available left remaining remain have balance requestable request use'],
+  [/^hoursPending$/, 'pending awaiting waiting'],
+  [/^hours$/, 'request requested approved denied pending off booked'],
+  [/^ptoRequestedHours$/, 'request requested off take'],
+  [/cents$/i, 'amount billed bill charge total owe owed value worth claim'],
+];
+const topicFor = (key) => FIELD_TOPICS.find(([re]) => re.test(key))?.[1];
+
 function authoritative(facts, docs) {
-  const by = new Map();
-  const add = (unit, v) => { if (!by.has(unit)) by.set(unit, new Set()); by.get(unit).add(+Number(v).toFixed(2)); };
-  const walk = (v, key = '') => {
-    if (Array.isArray(v)) v.forEach(x => walk(x, key));
-    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, k);
-    else if (typeof v === 'number') {
-      if (/hours/i.test(key)) add('hours', v);
-      else if (/cents$/i.test(key)) add('money', v / 100);
+  const entries = [];
+  const add = (unit, value, words) => entries.push({ unit, value: +Number(value).toFixed(2), keys: typeof words === 'string' ? topicWords(words, { generic: false }) : words });
+  const own = [];
+  // A record's own ID (e.g. CLM-1004) is a topic word for its values: "CLM-1004 is $3,250" is about that claim's amount.
+  const walk = (v, key = '', parent = null) => {
+    if (Array.isArray(v)) v.forEach(x => walk(x, key, parent));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, k, v);
+    else if (typeof v === 'number' && topicFor(key)) {
+      const words = `${topicFor(key)} ${typeof parent?.id === 'string' ? parent.id : ''}`;
+      if (/hours/i.test(key)) { add('hours', v, words); own.push(v); } else add('money', v / 100, words);
     }
   };
   walk(facts);
   // A PTO request is for one day; "one day" is established only when the user is booking one.
-  if (facts.ptoDateCandidates?.length) add('day', 1);
+  if (facts.ptoDateCandidates?.length) add('day', 1, 'off take request book');
   const DEFAULT_PTO_DAY = 8;
-  const ownHours = [...(by.get('hours') ?? []), DEFAULT_PTO_DAY];
-  add('hours', DEFAULT_PTO_DAY);
-  for (const a of ownHours) for (const b of ownHours) if (a > b) add('hours', a - b); // "40 hours minus an 8-hour day = 32"; never sums
-  const money = [...(by.get('money') ?? [])];
-  for (let i = 0; i < money.length; i += 1) for (let j = i + 1; j < money.length; j += 1) add('money', money[i] + money[j]);
-  for (const d of docs) for (const q of quantities(d.content)) add(q.unit, q.value);
-  return by;
+  add('hours', DEFAULT_PTO_DAY, 'full day request form one');
+  // "40 hours minus an 8-hour day leaves 32": differences of the user's own figures, about what would remain.
+  for (const a of [...own, DEFAULT_PTO_DAY]) for (const b of [...own, DEFAULT_PTO_DAY]) if (a > b) add('hours', a - b, 'after would left remain remaining leave then once balance available have');
+  const money = entries.filter(e => e.unit === 'money').map(e => e.value);
+  for (let i = 0; i < money.length; i += 1) for (let j = i + 1; j < money.length; j += 1) add('money', money[i] + money[j], 'total combined together sum altogether');
+  for (const d of docs) for (const sentence of sentences(d.content)) { const keys = topicWords(sentence); for (const q of quantities(sentence)) add(q.unit, q.value, keys); }
+  return entries;
 }
 
-// Returns the quantities in `text` that match no authoritative value with the same unit.
+// Returns the quantities in `text` that match no authoritative value with the same unit AND a shared topic
+// word in the same sentence (or the one before it).
 export function ungroundedQuantities(text, { facts = {}, docs = [] }) {
-  const by = authoritative(facts, docs);
-  return [...new Set(quantities(text).filter(q => ![...(by.get(q.unit) ?? [])].some(a => Math.abs(a - q.value) < 0.005)).map(q => q.text))];
+  const entries = authoritative(facts, docs);
+  const bad = new Set();
+  const grounded = []; // a later "the 60 days" refers back to a value already grounded in this answer
+  const list = sentences(text);
+  list.forEach((sentence, i) => {
+    const keys = new Set([...topicWords(sentence, { generic: false }), ...(i > 0 ? topicWords(list[i - 1], { generic: false }) : [])]);
+    for (const q of quantities(sentence)) {
+      const same = (e) => e.unit === q.unit && Math.abs(e.value - q.value) < 0.005;
+      const ok = grounded.some(same) || entries.some(e => same(e) && [...e.keys].some(k => keys.has(k)));
+      if (ok) grounded.push(q); else bad.add(q.text);
+    }
+  });
+  return [...bad];
+}
+
+// Statuses, denial codes and payers named in the answer must match the record or the documents.
+const CLAIM_STATUS = { paid: 'PAID', denied: 'DENIED', appealed: 'APPEALED', resubmitted: 'RESUBMITTED', closed: 'CLOSED', submitted: 'SUBMITTED', pending: 'PENDING_INFO' };
+const STATUS_RE = /(CLM-\d{4}|\b(?:the|this) claim\b|\bit\b)\s+(?:is|was|has been|had been|remains|is still|is now|was already)\s+(?:now\s+|currently\s+|still\s+|already\s+)?(paid|denied|appealed|resubmitted|closed|submitted|pending)\b/gi;
+const REQUEST_RE = /\b(?:your|the|this)\s+(?:pto\s+)?request(?:\s+for\s+([^.,;]{1,30}?))?\s+(?:is|was|has been)\s+(?:now\s+|still\s+|already\s+)?(approved|denied|pending)\b/gi;
+export function recordMismatches(text, { facts = {}, docs = [] }) {
+  const t = canonicalText(text); const out = [];
+  const claims = facts.claims ?? [];
+  for (const m of t.matchAll(STATUS_RE)) {
+    const claim = /^CLM-/i.test(m[1]) ? claims.find(c => c.id === m[1].toUpperCase()) : claims.length === 1 ? claims[0] : null;
+    if (claim && claim.status !== CLAIM_STATUS[m[2].toLowerCase()]) out.push(`${claim.id} called ${m[2].toLowerCase()} but its status is ${claim.status}`);
+  }
+  if (Array.isArray(facts.yourPtoRequests)) for (const m of t.matchAll(REQUEST_RE)) {
+    const status = m[2].toUpperCase();
+    const md = m[1] ? monthDays(m[1]).map(d => d.md) : [];
+    const candidates = facts.yourPtoRequests.filter(r => !md.length || md.includes(monthDays(r.date)[0]?.md));
+    if (!candidates.some(r => r.status === status)) out.push(`a PTO request called ${status.toLowerCase()} that no request of yours has`);
+  }
+  const known = `${JSON.stringify(facts)} ${docs.map(d => d.content).join(' ')}`;
+  for (const code of new Set(t.match(/\b(?:CO|PR|OA|PI|CR)-\d{1,3}\b/g) ?? [])) if (!new RegExp(`\\b${code}\\b`).test(known)) out.push(`denial code ${code} is not in the record or documents`);
+  for (const payer of new Set(t.match(/\bPayer [A-Z]\b/g) ?? [])) if (!known.includes(payer)) out.push(`${payer} is not in the record or documents`);
+  return out;
 }
 
 // "the claim is over $5,000" is checked against the claim's amount. The subject must be a specific claim

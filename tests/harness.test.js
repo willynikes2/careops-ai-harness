@@ -408,7 +408,7 @@ test('grounded numbers and simple arithmetic on the user\'s own records pass', a
   const { call } = await app.login('jordan');
   const r = await chat(call, 'What benefits do I have and how much PTO do I have left?');
   assert.equal(r.body.status, 'answered');
-  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers and dates match a record or document value \(same unit\)/);
+  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers, dates and statuses match the records or documents/);
 });
 test('KB outage: invented policy numbers are withheld; a facts-only answer carries a note', async (t) => {
   const provider = new FakeProvider([{ answer: 'You get a 25% employer match and 500 hours PTO every month.' }, { answer: 'You have 40 hours of PTO available.' }]);
@@ -531,4 +531,30 @@ test('a date the records and documents do not contain is not stated as fact', as
   assert.equal((await marcusSays('What is the deadline to fix and resubmit CLM-1003?', 'Correct and resubmit CLM-1003 by 2026-10-18.')).status, 'invalid_output');
   assert.equal((await marcusSays('What is the deadline to fix and resubmit CLM-1003?', 'Correct and resubmit CLM-1003 by October 18.')).status, 'invalid_output');
   assert.equal((await marcusSays('When was CLM-1003 serviced?', 'CLM-1003 was serviced on 2026-08-19 (Aug 19).')).status, 'answered');
+});
+
+// ── Known limits closed: numbers bound to their topic; statuses, codes and payers checked ──
+test('a real value attached to the wrong fact is withheld (same unit, different topic)', async () => {
+  assert.equal((await withheld('How much notice is required for PTO?', 'The PTO policy requires 40 hours notice.', ['1'])).status, 'invalid_output', 'carryover 40 h is not a notice period');
+  assert.equal((await withheld('How much notice is required for PTO?', 'The PTO policy requires 40 hours notice.', null, { down: true })).status, 'invalid_output', 'balance 40 h is not a notice period');
+  assert.equal((await withheld('How much PTO do I have left?', 'You have 6.67 hours available.', ['1'])).status, 'invalid_output', 'accrual rate is not the balance');
+});
+test('correctly attached values still pass, including paraphrases', async () => {
+  for (const a of ['You have 40 hours available.', 'You have 40 hours of PTO left.', 'Unused PTO carries over up to 40 hours (PTO Policy §5).', 'You accrue 6.67 hours each month.', 'Requests need at least 2 business days of notice.', 'The 401(k) match is 4% after 90 days.']) {
+    assert.equal((await withheld('What benefits do I have and how much PTO do I have left?', a, ['1', '2'])).status, 'answered', a);
+  }
+});
+test('claim status, denial codes and payers must match the record and documents', async () => {
+  assert.equal((await marcusSays('Why was CLM-1004 denied?', 'CLM-1004 was paid in full.')).status, 'invalid_output');
+  assert.equal((await marcusSays('Why was CLM-1004 denied?', 'CLM-1004 was denied with code CO-45.')).status, 'invalid_output');
+  assert.equal((await marcusSays('Why was CLM-1004 denied?', 'CLM-1004 belongs to Payer C.')).status, 'invalid_output');
+  assert.equal((await marcusSays('Why was CLM-1004 denied and what should we do next?', 'CLM-1004 was denied with code CO-197 by Payer A. It should be resubmitted after the authorization is obtained.', ['3'])).status, 'answered');
+});
+test('a PTO request status must match the user\'s own requests', async (t) => {
+  const provider = new FakeProvider([{ answer: 'Your request for Oct 9 was approved.' }, { answer: 'Your request for Oct 9 is still pending.' }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  await call('/api/pto/requests', { method: 'POST', body: { date: '2026-10-09', idempotencyKey: 'k' } });
+  assert.equal((await chat(call, 'Was my PTO request approved?')).body.status, 'invalid_output');
+  assert.equal((await chat(call, 'Was my PTO request approved?')).body.status, 'answered');
 });
