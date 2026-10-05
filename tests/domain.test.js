@@ -76,3 +76,8 @@ test('requested hours: digits, number words, half and full days', async () => {
   const { requestedHours } = await import('../src/util/dates.js');
   for (const [t, h] of [['for 4 hours', 4], ['for four hours', 4], ['six hrs', 6], ['a half day', 4], ['half-day', 4], ['two and a half hours', 2.5], ['an hour', 1], ['next Friday', null], ['a full day', 8]]) assert.equal(requestedHours(t), h, t);
 });
+test('hyphenated spelled-out hours ("four-hour") are parsed', async () => {
+  const { requestedHours } = await import('../src/util/dates.js');
+  assert.equal(requestedHours('Take next Friday off for four-hour PTO.'), 4);
+  assert.equal(requestedHours('a 6-hour day'), 6);
+});

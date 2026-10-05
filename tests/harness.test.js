@@ -403,12 +403,12 @@ test('a false balance or policy number with a valid citation is withheld (number
   assert.match(d.validation, /not supported by the records or documents \(9999 hours, 25%\)/);
 });
 test('grounded numbers and simple arithmetic on the user\'s own records pass', async (t) => {
-  const provider = new FakeProvider([{ answer: 'You have 40 hours available. A full day is 8 hours, so after one day you would have 32 hours. The 401(k) match is 4% after 90 days (Employee Benefits Guide 2026 §4).', citations: ['1', '2'] }]);
+  const provider = new FakeProvider([{ answer: 'You have 40 hours available. A full day is 8 hours, so after a full day you would have 32 hours. The 401(k) match is 4% after 90 days (Employee Benefits Guide 2026 §4).', citations: ['1', '2'] }]);
   const app = await startTestApp({ provider }); t.after(app.close);
   const { call } = await app.login('jordan');
   const r = await chat(call, 'What benefits do I have and how much PTO do I have left?');
   assert.equal(r.body.status, 'answered');
-  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers match a record or document value with the same unit/);
+  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers and dates match a record or document value \(same unit\)/);
 });
 test('KB outage: invented policy numbers are withheld; a facts-only answer carries a note', async (t) => {
   const provider = new FakeProvider([{ answer: 'You get a 25% employer match and 500 hours PTO every month.' }, { answer: 'You have 40 hours of PTO available.' }]);
@@ -496,4 +496,39 @@ test('spelled-out hours survive a date clarification', async (t) => {
   const { call } = await app.login('jordan');
   const c = await chat(call, 'Take next Friday off for four hours.');
   assert.deepEqual(c.body.clarification.options.map(o => o.message), ['Take 2026-10-09 off for 4 hours.', 'Take 2026-10-16 off for 4 hours.']);
+});
+
+// ── Retest 2 (KB #3352): duration units, money forms, claim thresholds, date anchors ──
+const marcusSays = async (message, answer, citations = []) => {
+  const provider = new FakeProvider([{ answer, citations }]);
+  const app = await startTestApp({ provider });
+  try { const { call } = await app.login('marcus'); return (await chat(call, message)).body; } finally { await app.close(); }
+};
+test('durations keep their unit: 2 business days does not support 2 years', async () => {
+  assert.equal((await withheld('How much notice is required for PTO?', 'PTO requests require 2 years notice.', ['1'])).status, 'invalid_output');
+  assert.equal((await withheld('How much notice is required for PTO?', 'PTO requests require 2 months notice.', ['1'])).status, 'invalid_output');
+  assert.equal((await withheld('How much notice is required for PTO?', 'PTO requests require 2 business days notice.', ['1'])).status, 'answered');
+});
+test('KB down: "one year" is not supported by a default value', async () => {
+  assert.equal((await withheld('How much notice is required for PTO?', 'The PTO policy requires one year notice.', null, { down: true })).status, 'invalid_output');
+});
+test('derived hours are differences of the user\'s own figures, not sums', async () => {
+  assert.equal((await withheld('How much PTO do I have left?', 'You have 80 hours of PTO available.', ['1'])).status, 'invalid_output');
+});
+test('money is checked in every form: $, dollars, USD, words', async () => {
+  for (const a of ['The billed amount on CLM-1004 is 9999 dollars.', 'The billed amount on CLM-1004 is nine thousand nine hundred ninety-nine dollars.', 'The billed amount on CLM-1004 is USD 9999.', 'The billed amount on CLM-1004 is 9,999 USD.']) {
+    assert.equal((await marcusSays('What is the billed amount on CLM-1004?', a)).status, 'invalid_output', a);
+  }
+  assert.equal((await marcusSays('What is the billed amount on CLM-1004?', 'The billed amount on CLM-1004 is 3,250 dollars.')).status, 'answered');
+});
+test('a claim stated to be over a threshold must actually be over it', async () => {
+  const bad = await marcusSays('Why was CLM-1004 denied and what should we do next?', 'Since the claim is over $5,000, it should also be escalated to the billing supervisor.', ['4']);
+  assert.equal(bad.status, 'invalid_output');
+  const ok = await marcusSays('Why was CLM-1004 denied and what should we do next?', 'Claims over $5,000 are escalated (Claim Denial Management SOP §5). CLM-1004 is $3,250, so it is not escalated.', ['4']);
+  assert.equal(ok.status, 'answered');
+});
+test('a date the records and documents do not contain is not stated as fact', async () => {
+  assert.equal((await marcusSays('What is the deadline to fix and resubmit CLM-1003?', 'Correct and resubmit CLM-1003 by 2026-10-18.')).status, 'invalid_output');
+  assert.equal((await marcusSays('What is the deadline to fix and resubmit CLM-1003?', 'Correct and resubmit CLM-1003 by October 18.')).status, 'invalid_output');
+  assert.equal((await marcusSays('When was CLM-1003 serviced?', 'CLM-1003 was serviced on 2026-08-19 (Aug 19).')).status, 'answered');
 });

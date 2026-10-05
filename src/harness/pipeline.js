@@ -194,7 +194,7 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
 
     // 5. VALIDATION — the model's output is a proposal, never authority
     const meta = { model, costUsd: out.usage.costUsd, latencyMs: out.latencyMs, _raw: out.text };
-    const v = validateTurn({ text: out.text, docs, facts, user, intent, message });
+    const v = validateTurn({ text: out.text, docs, facts, user, intent, message, today: nyDate(clock.now()) });
     if (!v.ok) {
       const raw = out.text.includes(CANARY) ? '[redacted: output contained protected system-prompt text]' : out.text.slice(0, 2000);
       trace.add('validation', 'error', `Withheld: ${v.reason}.`, { reason: v.reason, raw });

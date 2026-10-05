@@ -5,8 +5,9 @@ import { scoreTurn, chooseDefault } from '../src/labs/modelLab.js';
 import { startTestApp } from './helpers.js';
 import { FakeProvider } from '../src/llm/fake.js';
 
-test('13 eval items, including the dental-filing grounding check', () => {
-  assert.equal(EVAL_ITEMS.length, 13);
+test('14 eval items, including the dental-filing and escalation-threshold grounding checks', () => {
+  assert.equal(EVAL_ITEMS.length, 14);
+  assert.ok(EVAL_ITEMS.find(i => i.id === 'clm-1004-escalation'));
   assert.ok(EVAL_ITEMS.find(i => i.id === 'dental-filing').expect.mustNotSay.length > 0);
 });
 test('an answer that adds an unsupported procedure fails key_fact (mustNotSay)', () => {
