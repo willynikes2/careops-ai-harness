@@ -1,6 +1,6 @@
 import { newId } from '../util/ids.js';
 import { nyDate } from '../util/clock.js';
-import { formatDate, resolvePtoDate } from '../util/dates.js';
+import { formatDate, resolvePtoDate, requestedHours } from '../util/dates.js';
 import { can, INTENT_PERMISSION, ROLE_COLLECTIONS } from '../policy/permissions.js';
 import { classifyIntent } from '../policy/intent.js';
 import { getBalance, listMyPto, ptoDateProblem } from '../domain/pto.js';
@@ -43,6 +43,7 @@ export function gatherFacts(db, user, intent, claimIds, dateRes, message = '') {
     facts.missingClaimIds = claimIds.filter(id => !facts.claims.some(c => c.id === id));
   }
   if (dateRes?.kind === 'date') facts.ptoDateCandidates = [dateRes.date];
+  if (intent === 'pto_request' && requestedHours(message) != null) facts.ptoRequestedHours = requestedHours(message);
   return facts;
 }
 const describeFacts = (f) => [
@@ -120,7 +121,8 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
         const question = bookable.length === 2 ? `"${dateRes.phrase}" could mean ${formatDate(a)} or ${formatDate(b)}. Which one did you mean?`
           : bookable.length === 1 ? `"${dateRes.phrase}" could mean ${formatDate(a)} or ${formatDate(b)}. ${why} Did you mean ${formatDate(bookable[0])}?`
           : `"${dateRes.phrase}" could mean ${formatDate(a)} or ${formatDate(b)}, but neither can be booked. ${why}`;
-        clarification = { question, options: bookable.map(d => ({ label: formatDate(d), message: `Take ${d} off.` })) };
+        const hours = requestedHours(message); // carried into the follow-up so choosing a date cannot change the hours
+        clarification = { question, options: bookable.map(d => ({ label: formatDate(d), message: hours != null ? `Take ${d} off for ${hours} hours.` : `Take ${d} off.` })) };
       }
       trace.add('validation', 'ok', dateRes.kind === 'ambiguous' ? `Ambiguous date (${dateRes.candidates.join(' or ')}) — asking instead of assuming.` : 'No date given — asking.', { dateResolution: dateRes });
       trace.add('execution', 'skipped', 'Nothing changes until the date is confirmed.');
@@ -129,10 +131,11 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
 
     // 3. RETRIEVAL — role-scoped before the model sees anything
     let docs = [];
+    let kbUnavailable = false;
     try {
       const r = await retrieveForUser({ kb, user, query: buildQuery(intent, message, facts, claimIds) });
       docs = r.docs;
-      decision.restrictedRetrieval = `NOT EXECUTED — searched only ${ROLE_COLLECTIONS[user.role].join(', ')}`;
+      decision.restrictedRetrieval = `NONE — queried only ${ROLE_COLLECTIONS[user.role].join(', ')} (allowed for ${user.role}); ${docs.length} document(s) retrieved`;
       decision.sources = docs.map(d => d.title);
       const flaggedDocs = flagInstructionLike(docs);
       const flagNote = flaggedDocs.length ? ` Instruction-like text found in ${flaggedDocs.map(d => `"${d.title}"`).join(', ')} — passed to the model as untrusted data, never as instructions; it cannot grant tools or permissions.` : '';
@@ -142,6 +145,9 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
         safety.push(`Instruction-like text in ${flaggedDocs.map(d => `"${d.title}"`).join(', ')} was treated as data, not instructions.`);
       }
     } catch (err) {
+      kbUnavailable = true;
+      decision.restrictedRetrieval = 'NONE — knowledge service unavailable';
+      safety.push('Policy documents were unavailable, so this answer uses only your records.');
       trace.add('retrieval', 'error', 'Knowledge service unavailable — continuing with database facts only.', { error: String(err.message) });
     }
 
@@ -152,7 +158,17 @@ export function createHarness({ db, kb, provider, clock, audit, budget, prompts,
       ev({ actor: user, kind: 'budget_exhausted', turnId });
       return reply({ status: 'ai_unavailable', answer: UNAVAILABLE });
     }
-    const input = buildModelInput({ systemPrompt: prompts[promptVariant], user, intent, facts, docs, message, today: nyDate(clock.now()) });
+    const input = buildModelInput({ systemPrompt: prompts[promptVariant], user, intent, facts, docs, message, today: nyDate(clock.now()), kbUnavailable });
+    // Derived from what is actually in the model input, not a default: every document's collection must be one the role may read.
+    const outOfRole = docs.filter(d => !ROLE_COLLECTIONS[user.role].includes(d.collection));
+    decision.modelReceivedRestrictedData = outOfRole.length ? `YES — ${outOfRole.map(d => d.title).join(', ')}`
+      : `NO — checked: ${docs.length} document(s), all from ${ROLE_COLLECTIONS[user.role].join(', ')}; facts: ${Object.keys(facts).join(', ') || 'none'}`;
+    if (outOfRole.length) {
+      sec({ actor: user, kind: 'restricted_context_blocked', turnId, detail: { docs: outOfRole.map(d => d.id) } });
+      trace.add('reasoning', 'denied', 'Out-of-role content reached the model input — the model was not called.', { docs: outOfRole.map(d => d.id) });
+      SKIP(trace, ['validation', 'execution'], 'No state was changed.');
+      return reply({ status: 'ai_unavailable', answer: UNAVAILABLE });
+    }
     let out;
     try {
       decision.model = model;

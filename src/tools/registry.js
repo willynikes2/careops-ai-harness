@@ -9,7 +9,8 @@ export const TOOLS = Object.freeze({
   create_pto_request: {
     permission: 'pto:request:self', intents: ['pto_request'],
     args: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), hours: z.number().positive().max(8).default(8) }).strict(),
-    checkResources: (a, facts) => ((facts.ptoDateCandidates ?? []).includes(a.date) ? null : `date ${a.date} is not the date the user asked for`),
+    checkResources: (a, facts) => (!(facts.ptoDateCandidates ?? []).includes(a.date) ? `date ${a.date} is not the date the user asked for`
+      : facts.ptoRequestedHours != null && a.hours !== facts.ptoRequestedHours ? `${a.hours} hours is not what the user asked for (${facts.ptoRequestedHours} hours)` : null),
     summarize: (a) => `Request ${a.hours} hours of PTO on ${formatDate(a.date)} (${a.date})`,
     execute: ({ db, user, args, clock }) => createPtoRequest(db, { user, date: args.date, hours: args.hours, clock }),
     resultMessage: (r) => `PTO request for ${r.date} submitted — status ${r.status}. Your manager will see it in Approvals.`,

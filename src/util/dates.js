@@ -6,6 +6,14 @@ export function addBusinessDays(ymd, n) { let d = ymd; let left = n; while (left
 export function businessDaysUntil(from, to) { let n = 0; for (let d = addDays(from, 1); d <= to; d = addDays(d, 1)) if (!isWeekend(d)) n += 1; return n; }
 export function formatDate(ymd) { return new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
 
+// Hours the user stated ("for 4 hours", "half day"), or null — parsed in code so a clarification cannot drop them.
+export function requestedHours(text) {
+  const t = String(text).toLowerCase();
+  const m = t.match(/\b(\d+(?:\.\d+)?)\s*(?:-\s*)?(?:hours?|hrs?|h)\b/);
+  if (m) return Number(m[1]);
+  return /\bhalf[\s-]?day\b/.test(t) ? 4 : null;
+}
+
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const isoDow = (d) => (d === 0 ? 7 : d); // Mon=1 … Sun=7
 // Deterministic date resolution: the model never decides which calendar day a phrase means.

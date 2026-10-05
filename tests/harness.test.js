@@ -391,3 +391,69 @@ test('the output contract forbids unsupported procedures and sends people only t
   assert.match(provider.calls[0].system, /the people team/);
   assert.match(provider.calls[0].system, /only that person or their manager can see them/);
 });
+
+// ── Review round 3 (KB #3345): grounding is checked, not just instructed ──
+test('a false balance or policy number with a valid citation is withheld (numbers must be grounded)', async (t) => {
+  const provider = new FakeProvider([{ answer: 'You have 9999 hours of PTO available. Your employer matches 25% of your 401(k).', citations: ['1'] }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const r = await chat(call, 'What benefits do I have and how much PTO do I have left?');
+  assert.equal(r.body.status, 'invalid_output');
+  const d = (await call(`/api/traces/${r.body.turnId}`)).body.decision;
+  assert.match(d.validation, /not supported by the records or documents \(9999 hours, 25%\)/);
+});
+test('grounded numbers and simple arithmetic on the user\'s own records pass', async (t) => {
+  const provider = new FakeProvider([{ answer: 'You have 40 hours available. A full day is 8 hours, so after one day you would have 32 hours. The 401(k) match is 4% after 90 days (Employee Benefits Guide 2026 §4).', citations: ['1', '2'] }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const r = await chat(call, 'What benefits do I have and how much PTO do I have left?');
+  assert.equal(r.body.status, 'answered');
+  assert.match((await call(`/api/traces/${r.body.turnId}`)).body.steps.find(s => s.name === 'validation').summary, /source ID\(s\) recognized · numbers grounded/);
+});
+test('KB outage: invented policy numbers are withheld; a facts-only answer carries a note', async (t) => {
+  const provider = new FakeProvider([{ answer: 'You get a 25% employer match and 500 hours PTO every month.' }, { answer: 'You have 40 hours of PTO available.' }]);
+  const app = await startTestApp({ provider, kb: fakeKb(undefined, { down: true }) }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  assert.equal((await chat(call, 'What is my 401(k) match and PTO accrual?')).body.status, 'invalid_output');
+  const ok = await chat(call, 'How much PTO do I have left?');
+  assert.equal(ok.body.status, 'answered');
+  assert.ok(ok.body.safety.some(s => /policy documents were unavailable/i.test(s)));
+  assert.match(provider.calls[1].user, /knowledge base is unavailable/i);
+});
+test('look-alike claim IDs cannot slip past the invented-record check', async (t) => {
+  for (const fake of ['CLM‑5555', 'CLM– 5555', 'CLM 5555', 'CLM-５５５５', 'CL​M-5555', 'CLM&#45;5555', 'CLM-10045']) {
+    const provider = new FakeProvider([{ answer: `Claim ${fake} has been paid in full.` }]);
+    const app = await startTestApp({ provider });
+    const { call } = await app.login('marcus');
+    const r = await chat(call, 'Why was CLM-1004 denied?');
+    await app.close();
+    assert.equal(r.body.status, 'invalid_output', JSON.stringify(fake));
+  }
+});
+test('choosing a date in a clarification keeps the hours the user asked for', async (t) => {
+  const provider = new FakeProvider([
+    { answer: 'Requesting it.', proposed_action: { tool: 'create_pto_request', args: { date: '2026-10-09', hours: 8 } } },
+    { answer: 'Requesting it.', proposed_action: { tool: 'create_pto_request', args: { date: '2026-10-09', hours: 4 } } }]);
+  const app = await startTestApp({ provider }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const c = await chat(call, 'Take next Friday off for 4 hours.');
+  assert.equal(c.body.status, 'clarify');
+  assert.deepEqual(c.body.clarification.options.map(o => o.message), ['Take 2026-10-09 off for 4 hours.', 'Take 2026-10-16 off for 4 hours.']);
+  const wrong = await chat(call, c.body.clarification.options[0].message);
+  assert.equal(wrong.body.proposedAction, null, 'an 8-hour proposal for a 4-hour request is rejected');
+  assert.match((await call(`/api/traces/${wrong.body.turnId}`)).body.decision.validation, /4 hours/);
+  const right = await chat(call, c.body.clarification.options[0].message);
+  assert.match(right.body.proposedAction.summary, /Request 4 hours/);
+});
+test('decision provenance is derived from the assembled context, not defaults', async (t) => {
+  const leaky = { ...fakeKb(), async search(q, { collection } = {}) { return [{ id: '3', title: 'Payer A Provider Manual (Synthetic)', collection: 'careops-billing', rank: -9 }, { id: '1', title: 'PTO Policy', collection, rank: -1 }]; } };
+  const provider = new FakeProvider([{ answer: 'A full day of PTO is 8 hours.', citations: ['1'] }]);
+  const app = await startTestApp({ provider, kb: leaky }); t.after(app.close);
+  const { call } = await app.login('jordan');
+  const r = await chat(call, 'How long is a full day of PTO?');
+  assert.ok(!provider.calls[0].user.includes('CO-197'), 'out-of-role document never reaches the model');
+  const d = (await call(`/api/traces/${r.body.turnId}`)).body.decision;
+  assert.notEqual(d.restrictedRetrieval, 'NOT EXECUTED');
+  assert.match(d.restrictedRetrieval, /careops-hr/);
+  assert.match(d.modelReceivedRestrictedData, /^NO — checked: \d+ document\(s\), all from careops-hr/);
+});

@@ -2,8 +2,10 @@ import { parseModelOutput } from '../llm/contract.js';
 import { validateProposal } from '../tools/registry.js';
 import { CANARY } from './prompts.js';
 import { INTERNAL_FORMAT } from './leaks.js';
+import { unknownClaimIds, ungroundedQuantities } from './grounding.js';
 
-// The model's output is a proposal. Every claim it makes that the app can check, the app checks.
+// The model's output is a proposal. The app checks what it can check deterministically: the contract, that cited
+// sources were supplied, record IDs, numbers, protected text and tool requests. It does not verify prose entailment.
 export function validateTurn({ text, docs, facts, user, intent, message = '' }) {
   const parsed = parseModelOutput(text);
   if (!parsed.ok) return { ok: false, reason: parsed.reason };
@@ -18,12 +20,13 @@ export function validateTurn({ text, docs, facts, user, intent, message = '' }) 
   data.citations = [...new Set(data.citations.map(c => resolve(c).id))];
   const known = new Set((facts.claims ?? []).map(c => c.id));
   const shown = `${data.answer} ${data.needs_clarification ?? ''}`; // everything the user will read
-  const mentioned = [...new Set((shown.match(/\bCLM-\d{4}\b/gi) ?? []).map(s => s.toUpperCase()))];
-  const fabricated = mentioned.filter(id => !known.has(id));
+  const fabricated = unknownClaimIds(shown, known);
   if (fabricated.length) return { ok: false, reason: `referenced records not in the authorized context (${fabricated.join(', ')})` };
+  const ungrounded = ungroundedQuantities(shown, { facts, docs, message });
+  if (ungrounded.length) return { ok: false, reason: `stated numbers not supported by the records or documents (${ungrounded.join(', ')})` };
   const p = validateProposal({ proposal: data.proposed_action, user, intent, facts, message });
   const citations = [...new Set(data.citations)].map(id => ({ docId: id, title: docs.find(d => d.id === id).title }));
-  const summary = ['JSON contract ✓', `${citations.length} citation(s) verified`, 'record IDs ✓',
+  const summary = ['JSON contract ✓', `${citations.length} source ID(s) recognized · numbers grounded ✓`, 'record IDs ✓',
     data.proposed_action ? (p.ok ? `tool "${data.proposed_action.tool}" allowed` : `tool request REJECTED: ${p.reason}`) : 'no tool requested'].join(' · ');
   return { ok: true, data, citations, action: p.ok ? p.action : null, actionRejection: p.ok ? null : p.reason, notOffered: p.notOffered ?? null, summary };
 }
