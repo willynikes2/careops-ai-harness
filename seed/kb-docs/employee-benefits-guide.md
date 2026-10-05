@@ -13,6 +13,8 @@ CareOps offers two medical plans, **Core PPO** and **Plus PPO**. Review the enro
 
 Dental cleanings twice a year are covered at **100%**. When scheduling, tell the dental office which plan you have and ask it to confirm coverage. Other dental services may have different terms; this cleaning benefit should not be used as a promise that all dental work is fully covered.
 
+**Claims.** This guide does not describe how dental or vision claims are filed, and it does not say whether the office or the employee submits them. For claim questions, contact the people team, who will explain the process for your plan.
+
 ## §3 Vision
 
 The vision benefit includes an exam every **12 months**. Check the date of your last covered exam before booking the next one. Ask the people team for enrollment information if you cannot find your coverage details. This section does not specify an allowance for frames, lenses, or contact lenses.

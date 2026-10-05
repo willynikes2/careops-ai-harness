@@ -13,6 +13,9 @@ test('an answer that adds an unsupported procedure fails key_fact (mustNotSay)',
   const item = { id: 'd', expect: { tool: null, keyFacts: [], mustCite: false, mustNotSay: ['submit the claim', 'directly to the insurer'] } };
   const turn = (answer) => ({ status: 'answered', answer, citations: [], proposedAction: null, _raw: JSON.stringify({ answer }) });
   assert.ok(scoreTurn(item, turn('Your dental office will submit the claim directly to the insurer.')).failed.includes('key_fact'));
+  const real = EVAL_ITEMS.find(i => i.id === 'dental-filing');
+  assert.ok(scoreTurn(real, turn('To file a claim, submit the invoice from your dental provider to the people team for reimbursement.')).failed.includes('key_fact'), 'half-invented steps must fail too');
+  assert.equal(scoreTurn(real, turn("Cleanings are covered at 100%. The guide doesn't describe how claims are submitted, so ask the people team.")).pass, true, 'a grounded answer that mentions submission must still pass');
   assert.equal(scoreTurn(item, turn('The Benefits Guide does not describe how to file a claim; ask the people team.')).pass, true);
 });
 const item = { id: 'x', expect: { tool: 'create_billing_followup', keyFacts: [['authorization']], mustCite: true } };
